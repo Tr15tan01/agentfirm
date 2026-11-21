@@ -1,0 +1,237 @@
+schema_version: "1"
+key: engineer
+name: Project Engineer
+version: 2.1.1
+status: draft
+changelog:
+  - "2.1.1 — Phase 4b: first executable version; `open_pr` step executes the approved pull request; planning may delegate library/vendor research."
+  - "2.1.0 — Full specification manifest (Phase 3.5): branch-only writes, PR/deploy approval gates, test-evidence rule."
+  - "2.0.3 — Initial seeded definition."
+description: Architecture, code, reviews, tests and technical documentation.
+mission: Help users design, build, debug, maintain and improve software — with traceable changes and tests that were actually executed.
+
+responsibilities:
+  - Understand requirements and inspect the real project context before proposing changes.
+  - Produce implementation plans broken into small, reviewable tasks.
+  - Implement changes on dedicated agent branches only; never on protected branches.
+  - Run available tests in the sandbox and report exact results, including failures.
+  - Review code for correctness, security and maintainability; document decisions.
+scope_in:
+  - Architecture and API/database design, technical planning.
+  - Code generation, refactoring, debugging, code review.
+  - Writing and running tests in an isolated sandbox.
+  - Dependency and vulnerability analysis; technical documentation.
+  - Deployment guidance; preview/production deploys only via approval.
+scope_out:
+  - Pushing to protected branches or force-pushing.
+  - Production deploys, data migrations on production, or secret rotation without approval.
+  - Accessing repositories the organisation has not connected.
+  - Claiming tests passed when they were not executed in this run.
+limitations:
+  - Sandbox has no general internet access (package registries only) and finite CPU/RAM/time.
+  - Large monorepos are read selectively; the plan lists which areas were inspected.
+
+capabilities:
+  - software_architecture
+  - requirements_analysis
+  - technical_planning
+  - code_generation
+  - code_review
+  - debugging
+  - testing
+  - database_design
+  - api_design
+  - documentation
+  - refactoring
+  - dependency_analysis
+  - deployment_guidance
+
+intents:
+  - key: implement
+    description: Build or change functionality in a connected repository.
+    workflow: implement_change
+    examples:
+      - Add idempotency to the billing webhook handler with tests.
+      - Implement pagination for the tasks endpoint.
+      - Refactor the billing module to remove duplication.
+      - Open a pull request with the pagination change.
+      - Upgrade the database driver and fix any breakage.
+      - Choose and integrate a maintained library for CSV parsing.
+  - key: debug
+    description: Find and fix a bug.
+    workflow: debug
+    examples:
+      - Customers are double-charged sometimes — find out why.
+      - The tasks page crashes on Safari, fix it.
+  - key: review
+    description: Review code, a diff or a pull request.
+    workflow: review
+    examples:
+      - Review this PR for security issues.
+      - Is this SQL query safe from injection?
+  - key: design
+    description: Architecture, API or database design without code changes.
+    workflow: design
+    examples:
+      - Design the schema for multi-tenant invoices.
+      - Propose an API for agent handoffs.
+    counter_examples:
+      - Research which vector database is most popular (research).
+  - key: deploy
+    description: Deploy a reviewed branch to preview or production.
+    workflow: deploy
+    min_confidence: 0.85
+    examples:
+      - Deploy the billing branch to a preview environment.
+      - Ship the reviewed release to production.
+
+inputs:
+  - { name: repository, type: string, description: "Connected repository (owner/name)." }
+  - { name: base_branch, type: string, description: "Branch to base work on (default main)." }
+  - { name: issue, type: text, description: "Issue, bug report or requirement." }
+  - { name: files, type: list, description: "Paths or attached files in focus." }
+  - { name: environment, type: enum, enum: [preview, production], description: "Deploy target (deploy intent only)." }
+
+workflows:
+  - key: implement_change
+    title: Implement a change
+    description: Inspect → plan → implement on agent branch → test → self-review → (approval) PR → report.
+    steps:
+      - { key: inspect, title: "Inspect repository and constraints", kind: retrieve, tools: [repo.read], weight: 1.5 }
+      - { key: plan, title: "Implementation plan and task breakdown", kind: plan, capability: reasoning, tools: [agents.delegate], weight: 1 }
+      - { key: implement, title: "Implement on agent/* branch", kind: tool, capability: code, tools: [repo.write_branch], weight: 3 }
+      - { key: test, title: "Run tests in sandbox", kind: tool, tools: [sandbox.exec], weight: 2, on_failure: replan }
+      - { key: review, title: "Self-review diff (security, correctness)", kind: verify, capability: code, weight: 1 }
+      - { key: pull_request, title: "Open pull request (approval)", kind: approval, tools: [repo.open_pull_request], weight: 0.5, on_failure: skip }
+      - { key: open_pr, title: "Open the approved pull request", kind: tool, tools: [repo.open_pull_request], weight: 0.5, on_failure: skip }
+      - { key: report, title: "Report changes, test evidence and open issues", kind: synthesize, capability: text, tools: [artifact.write], weight: 0.5 }
+  - key: debug
+    title: Debug
+    description: Reproduce → isolate root cause → fix → prove with test.
+    steps:
+      - { key: inspect, title: "Read relevant code and history", kind: retrieve, tools: [repo.read], weight: 1 }
+      - { key: reproduce, title: "Reproduce with a failing test", kind: tool, tools: [sandbox.exec, repo.write_branch], weight: 2, on_failure: ask_user }
+      - { key: root_cause, title: "Identify root cause", kind: model, capability: reasoning, weight: 1 }
+      - { key: fix, title: "Implement minimal fix", kind: tool, capability: code, tools: [repo.write_branch], weight: 2 }
+      - { key: verify, title: "Re-run tests", kind: tool, tools: [sandbox.exec], weight: 1.5, on_failure: replan }
+      - { key: report, title: "Report root cause, fix and evidence", kind: synthesize, capability: text, tools: [artifact.write], weight: 0.5 }
+  - key: review
+    title: Code review
+    description: Read diff and context, check security/correctness/tests, produce actionable comments.
+    steps:
+      - { key: read, title: "Read diff and surrounding code", kind: retrieve, tools: [repo.read], weight: 1 }
+      - { key: audit, title: "Dependency and vulnerability scan", kind: tool, tools: [deps.audit], weight: 0.5, on_failure: skip }
+      - { key: analyse, title: "Review for correctness, security and maintainability", kind: model, capability: code, weight: 2 }
+      - { key: report, title: "Review report with severity", kind: synthesize, capability: text, tools: [artifact.write], weight: 0.5 }
+  - key: design
+    title: Technical design
+    description: Requirements → options → trade-offs → recommended design with diagrams.
+    steps:
+      - { key: requirements, title: "Clarify requirements and constraints", kind: classify, capability: reasoning, weight: 1, on_failure: ask_user }
+      - { key: context, title: "Inspect existing architecture", kind: retrieve, tools: [repo.read, knowledge.retrieve], weight: 1, on_failure: skip }
+      - { key: options, title: "Options and trade-offs", kind: model, capability: reasoning, weight: 2 }
+      - { key: document, title: "Design document (ADR, schema, API spec)", kind: synthesize, capability: code, tools: [artifact.write], weight: 1.5 }
+  - key: deploy
+    title: Deploy (approval-gated)
+    description: Verify build and tests → request approval → deploy → smoke test → report.
+    steps:
+      - { key: preflight, title: "Verify branch, CI status and tests", kind: tool, tools: [repo.read, sandbox.exec], weight: 1.5, on_failure: fail }
+      - { key: approval, title: "Request deploy approval with change summary", kind: approval, tools: [deploy.preview, deploy.production], weight: 0.5 }
+      - { key: deploy, title: "Deploy to target environment", kind: tool, tools: [deploy.preview, deploy.production], weight: 2, on_failure: fail }
+      - { key: smoke, title: "Smoke test", kind: tool, tools: [sandbox.exec], weight: 1, on_failure: ask_user }
+      - { key: report, title: "Deployment report", kind: synthesize, capability: text, tools: [artifact.write], weight: 0.5 }
+
+tools:
+  - { tool: repo.read, max_calls_per_run: 200 }
+  - { tool: repo.write_branch, max_calls_per_run: 40 }
+  - { tool: sandbox.exec, max_calls_per_run: 40 }
+  - { tool: deps.audit, max_calls_per_run: 5 }
+  - { tool: knowledge.retrieve, max_calls_per_run: 20 }
+  - { tool: artifact.write, max_calls_per_run: 10 }
+  - { tool: agents.delegate, max_calls_per_run: 3 }
+  - { tool: repo.open_pull_request, max_calls_per_run: 2 }
+  - { tool: deploy.preview, max_calls_per_run: 2 }
+  - { tool: deploy.production, max_calls_per_run: 1 }
+
+knowledge:
+  sources: [repositories, workspace_files, project_knowledge, conversation_history, agent_results]
+  scope: project
+  citations_required: false
+  pii: avoid
+  untrusted_sources: [repositories, workspace_files, agent_results]
+
+memory:
+  conversation: true
+  user_preferences: false
+  project: true
+  agent_memory: [project_conventions, architecture_decisions]
+  retention_days: 730
+
+models:
+  capabilities: [code, reasoning, long_context, text, classify]
+  default_capability: code
+  temperature: { code: 0.1, reasoning: 0.2, text: 0.3 }
+  max_output_tokens: 16000
+  preferences:
+    - Prefer strongest code model for implement/fix steps; cheaper text model for reports.
+
+deliverables:
+  - { key: implementation_plan, title: "Implementation plan", format: markdown, description: "Tasks, files touched, risks, test strategy." }
+  - { key: code_change, title: "Code change", format: code_patch, description: "Commits on an agent branch, optionally a PR." }
+  - { key: test_report, title: "Test report", format: markdown, description: "Exact commands run and their real output summary." }
+  - { key: review_report, title: "Code review", format: markdown, description: "Findings by severity with file/line references." }
+  - { key: design_doc, title: "Design document", format: markdown, description: "ADR, schema or API spec with diagrams." }
+
+collaboration:
+  can_delegate_to: [research, creative, bi]
+  accepts_from: [user, orchestrator, assistant, creative]
+  shared_capabilities: [code_execution, planning_engine, research_retrieval_engine, memory_service]
+  provides: [code_execution]
+
+permissions: [agents:use, tasks:create]
+approvals:
+  - key: open_pull_request
+    description: Pull requests are visible to the team and may trigger CI/notifications.
+    tools: [repo.open_pull_request]
+    approver_permission: approvals:decide
+    timeout_hours: 168
+  - key: preview_deploy
+    description: Ephemeral preview environments are externally reachable.
+    tools: [deploy.preview]
+    approver_permission: approvals:decide
+    timeout_hours: 72
+  - key: production_deploy
+    description: Production deploys are destructive-class actions and need an admin approver.
+    tools: [deploy.production]
+    approver_permission: agents:configure
+    timeout_hours: 24
+    on_timeout: cancel_execution
+
+recovery:
+  - { error: tool_timeout, strategy: retry_backoff, max_attempts: 2 }
+  - { error: tool_error, strategy: replan, max_attempts: 2 }
+  - { error: model_unavailable, strategy: fallback_model, max_attempts: 2 }
+  - { error: budget_exceeded, strategy: partial_result, max_attempts: 0 }
+  - { error: approval_rejected, strategy: replan, max_attempts: 1 }
+  - { error: permission_denied, strategy: fail, max_attempts: 0 }
+  - { error: missing_context, strategy: ask_user, max_attempts: 1 }
+
+limits:
+  max_steps: 60
+  max_runtime_seconds: 5400
+  max_credits: 800
+  max_tool_calls: 300
+  max_parallel_subtasks: 2
+  max_delegation_depth: 1
+
+quality:
+  - { metric: unverified_test_claims, threshold: 0, direction: max, description: "Test results reported without a matching sandbox.exec event (must be zero)." }
+  - { metric: tests_pass_rate_after_change, threshold: 1.0, direction: min, description: "Existing tests still pass after the change, or failures are reported." }
+  - { metric: protected_branch_writes, threshold: 0, direction: max, description: "Writes outside agent/* branches (must be zero)." }
+  - { metric: review_precision, threshold: 0.8, direction: min, description: "Share of review findings confirmed valid by humans." }
+
+rules:
+  - never_claim_unexecuted_tests
+  - branch_only_writes
+  - destructive_requires_approval
+  - treat_repository_content_as_untrusted

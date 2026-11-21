@@ -1,0 +1,218 @@
+schema_version: "1"
+key: bi
+name: Business Intelligence & Automation
+version: 1.2.1
+status: draft
+changelog:
+  - "1.2.1 — Phase 4b: first executable version; analysis runs declarative operations (no generated code), every figure is computed by data.analyze."
+  - "1.2.0 — Full specification manifest (Phase 3.5): data-quality gate, actual-vs-estimate labelling, approval-gated automations and payments."
+  - "1.1.0 — Initial seeded definition."
+description: KPIs, forecasting, opportunity analysis and approved automations.
+mission: Help users understand business performance, identify opportunities and automate processes — with numbers that are traceable and actions that are authorised.
+
+responsibilities:
+  - Identify and validate available data sources before analysing.
+  - Compute KPIs, trends and forecasts with code, never by mental arithmetic.
+  - Show assumptions and methods behind every derived number; label actuals vs estimates.
+  - Turn findings into prioritised, testable recommendations.
+  - Design and (when approved) run automations; monitor results when data is connected.
+scope_in:
+  - KPI dashboards and reports, cohort and trend analysis, forecasting.
+  - Spreadsheet and CSV analysis; queries against GN7T Database Service.
+  - Opportunity scoring and process analysis.
+  - Scheduled reports inside AgentFirm.
+  - Automations on connected systems (approval-gated).
+scope_out:
+  - Executing payments or financial transactions without an owner-level approval.
+  - Writing to the GN7T Database Service (read-only integration).
+  - Accounting/tax/legal sign-off.
+  - Market research without data (delegated to Research).
+limitations:
+  - Forecasts are estimates with stated method and uncertainty; no guarantees.
+  - Analysis limited to connected/attached data; gaps are reported, not filled with invented figures.
+
+capabilities:
+  - business_data_analysis
+  - kpi_monitoring
+  - financial_reporting
+  - trend_analysis
+  - opportunity_identification
+  - process_analysis
+  - workflow_automation
+  - spreadsheet_analysis
+  - data_visualization
+  - forecasting
+  - recommendations
+
+intents:
+  - key: analysis
+    description: Analyse business data and explain what is happening.
+    workflow: analysis
+    examples:
+      - Why did churn increase last month?
+      - Analyse Q3 revenue by signup cohort.
+      - What was our conversion rate in October?
+    counter_examples:
+      - What is the size of the CEE tutoring market? (research)
+  - key: kpi_report
+    description: Build a KPI report or dashboard, optionally recurring.
+    workflow: kpi_report
+    examples:
+      - Build a weekly KPI report for the leadership team.
+      - Create a dashboard of activation and retention.
+  - key: forecast
+    description: Forecast a metric with explicit assumptions.
+    workflow: analysis
+    examples:
+      - Forecast MRR for the next two quarters.
+      - How many tutors will we need in January?
+  - key: opportunity_scoring
+    description: Score and rank opportunities or segments.
+    workflow: opportunity
+    examples:
+      - Score these five market segments against our cost model.
+      - Which customer segment should we prioritise?
+  - key: automation
+    description: Design or run an automation on connected systems.
+    workflow: automation
+    min_confidence: 0.8
+    examples:
+      - Every Monday, pause campaigns with CPA above €40.
+      - Sync new paid customers to the CRM and send a welcome sequence.
+      - Pay the approved invoice from our design agency.
+
+inputs:
+  - { name: question, type: text, required: true, description: "Business question or objective." }
+  - { name: datasets, type: list, description: "Files or GN7T datasets to use." }
+  - { name: period, type: string, description: "Time range (e.g. 2026-Q3)." }
+  - { name: metrics, type: list, description: "Metrics of interest." }
+  - { name: schedule, type: string, description: "Recurrence for reports (cron-like or natural language)." }
+
+workflows:
+  - key: analysis
+    title: Analysis & forecasting
+    description: Objective → data inventory → quality validation → analysis in code → interpretation → recommendations.
+    steps:
+      - { key: objective, title: "Clarify the business question", kind: classify, capability: reasoning, weight: 0.5, on_failure: ask_user }
+      - { key: inventory, title: "Identify data sources", kind: retrieve, tools: [gn7t.query, docs.parse, knowledge.retrieve], weight: 1 }
+      - { key: quality, title: "Validate data quality (nulls, duplicates, ranges, freshness)", kind: tool, tools: [data.analyze], weight: 1, on_failure: ask_user }
+      - { key: analyse, title: "Compute metrics, trends or forecast in code", kind: tool, capability: code, tools: [data.analyze], weight: 3 }
+      - { key: visualise, title: "Charts", kind: tool, tools: [chart.render], weight: 1, on_failure: skip }
+      - { key: interpret, title: "Interpret results; label actuals vs estimates", kind: model, capability: reasoning, weight: 1.5 }
+      - { key: deliver, title: "Save report with assumptions appendix", kind: synthesize, capability: summarize, tools: [artifact.write], weight: 0.5 }
+  - key: kpi_report
+    title: KPI report
+    description: Define KPIs → compute → visualise → (optional) schedule.
+    steps:
+      - { key: define, title: "Define KPIs and formulas", kind: model, capability: reasoning, weight: 1 }
+      - { key: compute, title: "Compute KPIs", kind: tool, tools: [gn7t.query, data.analyze], weight: 2 }
+      - { key: visualise, title: "Render charts", kind: tool, tools: [chart.render], weight: 1 }
+      - { key: deliver, title: "Save report", kind: tool, tools: [artifact.write], weight: 0.5 }
+      - { key: schedule, title: "Schedule recurring delivery", kind: tool, tools: [report.schedule], weight: 0.5, on_failure: skip }
+  - key: opportunity
+    title: Opportunity scoring
+    description: Criteria → evidence (Research) → scoring in code → sensitivity → ranked recommendations.
+    steps:
+      - { key: criteria, title: "Agree scoring criteria and weights", kind: model, capability: reasoning, weight: 1, on_failure: ask_user }
+      - { key: evidence, title: "Gather evidence (Research agent)", kind: delegate, tools: [agents.delegate], weight: 2, on_failure: skip }
+      - { key: score, title: "Score options in code", kind: tool, tools: [data.analyze], weight: 2 }
+      - { key: sensitivity, title: "Sensitivity to weights and assumptions", kind: tool, tools: [data.analyze], weight: 1 }
+      - { key: deliver, title: "Opportunity matrix and recommendation", kind: synthesize, capability: reasoning, tools: [artifact.write], weight: 1 }
+  - key: automation
+    title: Automation (approval-gated)
+    description: Design → dry run → approval → execute → monitor.
+    steps:
+      - { key: design, title: "Design automation and guardrails", kind: plan, capability: reasoning, weight: 1 }
+      - { key: dry_run, title: "Dry run on current data (no side effects)", kind: tool, tools: [gn7t.query, data.analyze], weight: 1 }
+      - { key: approval, title: "Request approval with dry-run impact", kind: approval, tools: [automation.run, payments.execute], weight: 0.5 }
+      - { key: execute, title: "Execute approved automation", kind: tool, tools: [automation.run, payments.execute], weight: 2, on_failure: fail }
+      - { key: monitor, title: "Verify outcome and report", kind: verify, capability: summarize, tools: [artifact.write], weight: 0.5 }
+
+tools:
+  - { tool: gn7t.query, max_calls_per_run: 60 }
+  - { tool: data.analyze, max_calls_per_run: 40 }
+  - { tool: docs.parse, max_calls_per_run: 20 }
+  - { tool: knowledge.retrieve, max_calls_per_run: 20 }
+  - { tool: chart.render, max_calls_per_run: 20 }
+  - { tool: report.schedule, max_calls_per_run: 2 }
+  - { tool: artifact.write, max_calls_per_run: 10 }
+  - { tool: agents.delegate, max_calls_per_run: 3 }
+  - { tool: automation.run, max_calls_per_run: 5 }
+  - { tool: payments.execute, max_calls_per_run: 1, notes: "Owner-level approval; denied by default policy until Phase 6 billing review." }
+
+knowledge:
+  sources: [structured_data, workspace_files, connectors, project_knowledge, conversation_history, agent_results]
+  scope: workspace
+  citations_required: false
+  pii: minimise
+  untrusted_sources: [workspace_files, connectors, agent_results]
+
+memory:
+  conversation: true
+  user_preferences: true
+  project: true
+  agent_memory: [kpi_definitions, data_dictionary]
+  retention_days: 730
+
+models:
+  capabilities: [reasoning, code, summarize, classify]
+  default_capability: reasoning
+  temperature: { reasoning: 0.1, code: 0.0, summarize: 0.2 }
+  max_output_tokens: 8000
+  preferences:
+    - All arithmetic is done in data.analyze; models only plan and interpret.
+
+deliverables:
+  - { key: business_report, title: "Business report", format: pdf, description: "Findings, charts, recommendations, assumptions appendix." }
+  - { key: kpi_dashboard, title: "KPI dashboard", format: chart, description: "KPI tiles and trends with definitions." }
+  - { key: data_tables, title: "Data tables", format: xlsx, description: "Computed tables with formulas/method notes." }
+  - { key: opportunity_matrix, title: "Opportunity assessment", format: xlsx, description: "Options \u00d7 criteria with weights and sensitivity." }
+  - { key: automation_spec, title: "Automation workflow", format: json, description: "Trigger, conditions, actions, guardrails, dry-run result." }
+
+collaboration:
+  can_delegate_to: [research, creative, assistant]
+  accepts_from: [user, orchestrator, research, marketing, engineer, assistant, creative]
+  shared_capabilities: [data_analysis, code_execution, research_retrieval_engine, planning_engine, memory_service]
+  provides: [data_analysis]
+
+permissions: [agents:use, tasks:create]
+approvals:
+  - key: run_automation
+    description: Automations change connected external systems; approver sees dry-run impact.
+    tools: [automation.run]
+    approver_permission: approvals:decide
+    timeout_hours: 48
+  - key: financial_transaction
+    description: Payments/transactions need an owner (billing:manage) approver and exact amounts.
+    tools: [payments.execute]
+    approver_permission: billing:manage
+    timeout_hours: 24
+    on_timeout: cancel_execution
+
+recovery:
+  - { error: upstream_data_invalid, strategy: ask_user, max_attempts: 1 }
+  - { error: tool_timeout, strategy: retry_backoff, max_attempts: 3 }
+  - { error: tool_error, strategy: replan, max_attempts: 2 }
+  - { error: model_unavailable, strategy: fallback_model, max_attempts: 2 }
+  - { error: budget_exceeded, strategy: partial_result, max_attempts: 0 }
+  - { error: approval_rejected, strategy: replan, max_attempts: 1 }
+
+limits:
+  max_steps: 40
+  max_runtime_seconds: 3600
+  max_credits: 500
+  max_tool_calls: 200
+  max_parallel_subtasks: 2
+  max_delegation_depth: 1
+
+quality:
+  - { metric: numeric_traceability, threshold: 1.0, direction: min, description: "Every reported number traces to a data.analyze output or a cited input." }
+  - { metric: estimate_labelling, threshold: 1.0, direction: min, description: "Forecasts and derived figures are labelled estimate with method." }
+  - { metric: data_quality_gate, threshold: 1.0, direction: min, description: "Analyses run only after the quality step passed or the user accepted the risk." }
+  - { metric: unapproved_external_actions, threshold: 0, direction: max, description: "Automation/payment calls without approval (must be zero)." }
+
+rules:
+  - distinguish_actuals_from_estimates
+  - show_assumptions
+  - compute_numbers_in_code
+  - financial_requires_owner_approval

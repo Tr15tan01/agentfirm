@@ -1,0 +1,80 @@
+schema_version: "1"
+agent: creative
+cases:
+  - id: creative-cls-ideate
+    category: classification
+    description: Naming request routes to ideation.
+    objective: Brainstorm 20 names for our tutoring product.
+    expect: { intent: ideate, workflow: ideation }
+  - id: creative-cls-evaluate
+    category: classification
+    description: Ranking existing options routes to evaluation.
+    objective: Rank these three positioning options and be harsh.
+    expect: { intent: evaluate, workflow: evaluation }
+  - id: creative-cls-framework
+    category: classification
+    description: Named framework routes to a framework session.
+    objective: Run a premortem on our launch plan.
+    expect: { intent: problem_solving, workflow: framework_session }
+  - id: creative-cls-develop
+    category: classification
+    description: Developing a chosen idea routes to develop.
+    objective: Develop "Exam Sprint" into a product concept.
+    expect: { intent: develop_idea, workflow: develop }
+  - id: creative-quality-diversity
+    category: output_quality
+    description: Ideas are diverse and non-generic.
+    objective: Feature ideas for our mobile learning app.
+    parameters: { count: 15 }
+    expect: { deliverables: [idea_collection], rubric: ["At most 2 ideas are generic (e.g. 'add gamification').", "Ideas span at least 4 distinct themes."] }
+  - id: creative-tools-board
+    category: tool_selection
+    description: Reads the board first and saves results to it.
+    objective: More ideas for onboarding improvements.
+    setup: ["idea board contains 8 onboarding ideas"]
+    expect: { tools_called: [ideas.board_read, ideas.board_write] }
+  - id: creative-workflow-sixhats
+    category: workflow_completion
+    description: Six Hats covers all six perspectives and ends with actions.
+    objective: Use Six Thinking Hats on our pricing decision.
+    parameters: { approach: six_hats }
+    expect: { status: completed, deliverables: [framework_output], rubric: ["All six hats are present.", "Ends with concrete next actions."] }
+  - id: creative-perm-viewer
+    category: permission_enforcement
+    description: Viewers cannot start creative sessions or write to the board.
+    requester_role: viewer
+    objective: Brainstorm campaign ideas.
+    expect: { status: failed, error_code: permission_denied, tools_not_called: [ideas.board_write] }
+  - id: creative-recover-model
+    category: error_recovery
+    description: Primary model outage falls back without losing the session.
+    objective: Names for a fintech app.
+    setup: ["primary creative model unavailable"]
+    expect: { status: completed, rubric: ["model.called shows fallback_index ≥ 1."] }
+  - id: creative-hallucination-facts
+    category: hallucination_resistance
+    description: Ideas do not present invented market facts as true.
+    objective: Business ideas in the pet-care market.
+    expect: { claim_statuses_required: [speculative], rubric: ["Any market statistics are labelled speculative or omitted."] }
+  - id: creative-hallucination-repeats
+    category: hallucination_resistance
+    description: Does not re-propose rejected ideas.
+    objective: New positioning ideas.
+    parameters: { intent: ideate }  # pinned: the case tests memory of rejected ideas, not routing
+    setup: ["rejected_ideas memory contains 'Fluent in 15'"]
+    expect: { rubric: ["'Fluent in 15' is not proposed again."] }
+  - id: creative-cost-quick
+    category: cost
+    description: Twelve ideas stay cheap.
+    objective: 12 blog post ideas about remote learning.
+    expect: { max_credits: 20 }
+  - id: creative-duration-session
+    category: duration
+    description: A standard ideation session completes in under 2 minutes.
+    objective: Ideas for a webinar title.
+    expect: { max_duration_seconds: 120 }
+  - id: creative-collab-marketing
+    category: collaboration
+    description: Hands a selected idea to Marketing with a brief.
+    objective: Turn the top idea into a brief for the marketing agent.
+    expect: { handoff_to: [marketing], deliverables: [creative_brief] }

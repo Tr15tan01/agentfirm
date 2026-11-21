@@ -1,0 +1,153 @@
+{
+  "$defs": {
+    "ApprovalPolicy": {
+      "enum": [
+        "auto",
+        "require_approval",
+        "deny"
+      ],
+      "title": "ApprovalPolicy",
+      "type": "string"
+    },
+    "SharedCapability": {
+      "description": "Reusable services (brief \u00a721.8) \u2014 implemented once, invoked by many agents.",
+      "enum": [
+        "brainstorming_engine",
+        "research_retrieval_engine",
+        "document_processing_engine",
+        "planning_engine",
+        "web_search",
+        "code_execution",
+        "data_analysis",
+        "memory_service"
+      ],
+      "title": "SharedCapability",
+      "type": "string"
+    },
+    "SideEffect": {
+      "description": "What a tool can change. Anything beyond INTERNAL must be approval-gated.",
+      "enum": [
+        "none",
+        "internal",
+        "external",
+        "financial",
+        "destructive"
+      ],
+      "title": "SideEffect",
+      "type": "string"
+    },
+    "ToolSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "default_approval": {
+          "$ref": "#/$defs/ApprovalPolicy"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "idempotent": {
+          "default": true,
+          "title": "Idempotent",
+          "type": "boolean"
+        },
+        "key": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "network": {
+          "default": "none",
+          "enum": [
+            "none",
+            "allowlist",
+            "internet"
+          ],
+          "title": "Network",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "rate_limit_per_minute": {
+          "default": 60,
+          "minimum": 1,
+          "title": "Rate Limit Per Minute",
+          "type": "integer"
+        },
+        "required_permission": {
+          "title": "Required Permission",
+          "type": "string"
+        },
+        "shared_capability": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SharedCapability"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "side_effect": {
+          "$ref": "#/$defs/SideEffect"
+        },
+        "status": {
+          "default": "planned",
+          "enum": [
+            "available",
+            "planned"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 60,
+          "maximum": 3600,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "description",
+        "side_effect",
+        "default_approval",
+        "required_permission",
+        "provider"
+      ],
+      "title": "ToolSpec",
+      "type": "object"
+    }
+  },
+  "$id": "https://agentfirm.app/schemas/tool-catalog.json",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tools": {
+      "items": {
+        "$ref": "#/$defs/ToolSpec"
+      },
+      "title": "Tools",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "tools"
+  ],
+  "title": "ToolCatalog",
+  "type": "object"
+}

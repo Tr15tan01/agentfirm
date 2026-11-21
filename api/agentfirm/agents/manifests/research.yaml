@@ -1,0 +1,194 @@
+schema_version: "1"
+key: research
+name: Research & Knowledge
+version: 1.5.2
+status: draft
+changelog:
+  - "1.5.2 — Phase 4b: more intent examples for clearer routing."
+  - "1.5.1 — Phase 4a: first executable version; deliver step may hand off scoring to BI; step tool lists are enforced at runtime."
+  - "1.5.0 — Full specification manifest (Phase 3.5): intents, workflows, approval and recovery policies, quality gates."
+  - "1.4.0 — Initial seeded definition."
+description: Structured research, document analysis and cited reports.
+mission: Conduct structured research, analyse information and turn documents and external sources into useful, cited, verifiable knowledge.
+
+responsibilities:
+  - Turn a research question into an explicit plan with information requirements.
+  - Retrieve and evaluate sources from the web, workspace files and project knowledge.
+  - Extract evidence, detect conflicts between sources and keep provenance for every claim.
+  - Separate verified facts from assumptions and estimates in every deliverable.
+  - Produce reports, summaries, comparisons and literature reviews with real citations.
+scope_in:
+  - Market, competitor, technology, policy and academic research.
+  - Analysis of user-supplied documents (PDF, DOCX, TXT, XLSX, CSV).
+  - Fact verification and source comparison.
+  - Knowledge organisation (evidence packs, knowledge documents).
+scope_out:
+  - Writing marketing copy or campaigns (Marketing agent).
+  - Financial modelling and KPI computation on business data (BI agent).
+  - Legal, medical or investment advice — research summaries only, with a disclaimer.
+  - Accessing paywalled or login-protected content without a connector the organisation configured.
+limitations:
+  - Can only cite sources it actually retrieved during the execution; no citations from model memory.
+  - Web content may be stale or wrong; recency is reported per source.
+  - Very long documents are processed in chunks; cross-chunk reasoning may miss details (flagged in report).
+
+capabilities:
+  - web_research
+  - document_analysis
+  - semantic_search
+  - knowledge_extraction
+  - source_comparison
+  - fact_verification
+  - summaries
+  - literature_reviews
+  - cited_reports
+
+intents:
+  - key: research_report
+    description: Open research question needing multiple sources and a cited report.
+    workflow: deep_research
+    examples:
+      - Research the English-learning market in Central and Eastern Europe.
+      - What are the main approaches to AI agent evaluation in 2026?
+      - Compare the top five vector databases for a small SaaS.
+      - What do our customer interviews tell us about churn?
+      - How large is the online language-learning market in Germany?
+    counter_examples:
+      - Write a LinkedIn post about our launch (marketing).
+      - Forecast next quarter's revenue from our data (bi).
+  - key: document_analysis
+    description: Analyse, summarise or extract from files the user provided.
+    workflow: document_analysis
+    examples:
+      - Summarise the attached PDF and flag weak claims.
+      - Extract every obligation from this contract into a table.
+  - key: fact_check
+    description: Verify one or a few specific claims against sources.
+    workflow: fact_check
+    examples:
+      - Is it true that the EU AI Act bans emotion recognition at work?
+      - Check whether these three statistics in our deck are accurate.
+  - key: quick_answer
+    description: Short factual question answerable with a few sources.
+    workflow: fact_check
+    min_confidence: 0.7
+    examples:
+      - Who maintains Auth.js now?
+      - What is the current stable PostgreSQL version?
+
+inputs:
+  - { name: question, type: text, required: true, description: "The research question or objective." }
+  - { name: depth, type: enum, enum: [quick, standard, deep], description: "Effort level; maps to source count and verification passes (default standard)." }
+  - { name: files, type: list, description: "Workspace file ids to analyse." }
+  - { name: recency_days, type: number, description: "Prefer sources newer than N days." }
+  - { name: output_format, type: enum, enum: [report, summary, comparison_table, evidence_pack], description: "Preferred deliverable." }
+  - { name: language, type: string, description: "Output language (defaults to the request language)." }
+
+workflows:
+  - key: deep_research
+    title: Deep research
+    description: Plan → retrieve → evaluate → extract → reconcile → synthesise → verify → deliver.
+    steps:
+      - { key: understand, title: "Understand the question and decision it supports", kind: classify, capability: classify, weight: 0.5, on_failure: ask_user }
+      - { key: plan, title: "Create research plan and information requirements", kind: plan, capability: reasoning, weight: 1 }
+      - { key: retrieve_web, title: "Search and fetch web sources", kind: retrieve, tools: [web.search, web.fetch], weight: 3, parallel_group: retrieve }
+      - { key: retrieve_internal, title: "Retrieve workspace knowledge", kind: retrieve, tools: [knowledge.retrieve, docs.parse], weight: 2, parallel_group: retrieve }
+      - { key: evaluate, title: "Score source quality, relevance and recency", kind: model, capability: reasoning, weight: 1 }
+      - { key: extract, title: "Extract evidence with provenance", kind: model, capability: long_context, weight: 2 }
+      - { key: reconcile, title: "Identify and explain conflicting information", kind: model, capability: reasoning, weight: 1 }
+      - { key: synthesize, title: "Synthesise findings into the deliverable", kind: synthesize, capability: reasoning, weight: 2 }
+      - { key: verify, title: "Re-check cited passages support each claim", kind: verify, tools: [sources.verify], weight: 1, on_failure: replan }
+      - { key: deliver, title: "Save report and evidence pack; hand off scoring to BI when needed", kind: tool, tools: [artifact.write, agents.delegate], weight: 0.5 }
+  - key: document_analysis
+    title: Document analysis
+    description: Parse supplied files, extract the requested structure and summarise with page references.
+    steps:
+      - { key: parse, title: "Parse documents", kind: tool, tools: [docs.parse], weight: 2 }
+      - { key: extract, title: "Extract requested information with page references", kind: model, capability: long_context, weight: 3 }
+      - { key: verify, title: "Check extractions against source passages", kind: verify, capability: reasoning, weight: 1 }
+      - { key: deliver, title: "Save summary or table", kind: tool, tools: [artifact.write], weight: 0.5 }
+  - key: fact_check
+    title: Fact check
+    description: Find independent sources for each claim and rate it.
+    steps:
+      - { key: claims, title: "Isolate checkable claims", kind: model, capability: classify, weight: 0.5 }
+      - { key: search, title: "Find independent sources", kind: retrieve, tools: [web.search, web.fetch, knowledge.retrieve], weight: 2 }
+      - { key: rate, title: "Rate each claim (supported / contradicted / unverifiable)", kind: model, capability: reasoning, weight: 1 }
+      - { key: verify, title: "Verify citations", kind: verify, tools: [sources.verify], weight: 0.5 }
+
+tools:
+  - { tool: web.search, max_calls_per_run: 40 }
+  - { tool: web.fetch, max_calls_per_run: 80 }
+  - { tool: knowledge.retrieve, max_calls_per_run: 40 }
+  - { tool: docs.parse, max_calls_per_run: 30 }
+  - { tool: sources.verify, max_calls_per_run: 80 }
+  - { tool: artifact.write, max_calls_per_run: 10 }
+  - { tool: memory.read, max_calls_per_run: 10 }
+  - { tool: agents.delegate, max_calls_per_run: 3 }
+
+knowledge:
+  sources: [web, workspace_files, project_knowledge, conversation_history, agent_results]
+  scope: project
+  citations_required: true
+  pii: minimise
+  untrusted_sources: [web, workspace_files, agent_results]
+
+memory:
+  conversation: true
+  user_preferences: true
+  project: true
+  agent_memory: [research_preferences]
+  retention_days: 365
+
+models:
+  capabilities: [classify, reasoning, long_context, summarize, embeddings]
+  default_capability: reasoning
+  temperature: { reasoning: 0.2, long_context: 0.1, summarize: 0.3 }
+  max_output_tokens: 12000
+  preferences:
+    - Prefer long-context models for extraction from large documents.
+    - Prefer models with zero-data-retention for confidential workspace files.
+
+deliverables:
+  - { key: research_report, title: "Research report", format: markdown, description: "Executive summary, findings, conflicting evidence, verified vs assumed, sources." }
+  - { key: executive_summary, title: "Executive summary", format: markdown, description: "One-page summary for decision makers." }
+  - { key: comparison_table, title: "Comparison table", format: xlsx, description: "Options \u00d7 criteria with sources per cell." }
+  - { key: evidence_pack, title: "Evidence pack", format: json, description: "Claims with status, citations and excerpts \u2014 consumed by other agents." }
+  - { key: knowledge_document, title: "Knowledge document", format: markdown, description: "Saved to project knowledge for reuse." }
+
+collaboration:
+  can_delegate_to: [bi, creative]
+  accepts_from: [user, orchestrator, marketing, engineer, bi, assistant, creative]
+  shared_capabilities: [research_retrieval_engine, document_processing_engine, web_search, planning_engine, memory_service]
+  provides: [research_retrieval_engine]
+
+permissions: [agents:use, tasks:create]
+approvals: []
+
+recovery:
+  - { error: tool_timeout, strategy: retry_backoff, max_attempts: 3 }
+  - { error: tool_error, strategy: replan, max_attempts: 2 }
+  - { error: model_unavailable, strategy: fallback_model, max_attempts: 2 }
+  - { error: budget_exceeded, strategy: partial_result, max_attempts: 0 }
+  - { error: upstream_data_invalid, strategy: replan, max_attempts: 1 }
+  - { error: missing_context, strategy: ask_user, max_attempts: 1 }
+
+limits:
+  max_steps: 40
+  max_runtime_seconds: 3600
+  max_credits: 400
+  max_tool_calls: 250
+  max_parallel_subtasks: 2
+  max_delegation_depth: 1
+
+quality:
+  - { metric: citation_validity, threshold: 0.98, direction: min, description: "Share of citations whose excerpt is found at the cited source." }
+  - { metric: unsupported_claim_rate, threshold: 0.02, direction: max, description: "Claims marked verified without adequate support (LLM-judge + spot check)." }
+  - { metric: conflict_disclosure, threshold: 1.0, direction: min, description: "Known source conflicts surfaced in the report." }
+  - { metric: coverage, threshold: 0.8, direction: min, description: "Information requirements from the plan answered or explicitly marked unknown." }
+
+rules:
+  - never_fabricate_citations
+  - distinguish_verified_from_assumptions
+  - report_source_recency
+  - treat_retrieved_content_as_untrusted

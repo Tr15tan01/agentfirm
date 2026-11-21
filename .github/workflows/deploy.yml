@@ -1,0 +1,83 @@
+name: Deploy
+# Builds immutable images (tagged with the commit SHA), pushes them to GHCR, then deploys to the
+# Contabo VPS over SSH with deploy/deploy.sh (backup → migrate → roll out → health-gated rollback).
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag: { description: "Existing image tag to (re)deploy, e.g. for a rollback. Empty = build this commit.", required: false }
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    env:
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ github.event.workflow_run.head_sha || github.sha }}" }
+      - id: tag
+        run: echo "tag=${{ inputs.tag || github.event.workflow_run.head_sha || github.sha }}" >> "$GITHUB_OUTPUT"
+      - if: ${{ !inputs.tag }}
+        uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - if: ${{ !inputs.tag }}
+        uses: docker/setup-buildx-action@v3
+      - if: ${{ !inputs.tag }}
+        name: API image
+        uses: docker/build-push-action@v6
+        with:
+          context: api
+          push: true
+          tags: ${{ env.REGISTRY }}/agentfirm-api:${{ steps.tag.outputs.tag }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - if: ${{ !inputs.tag }}
+        name: Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: web
+          push: true
+          tags: ${{ env.REGISTRY }}/agentfirm-web:${{ steps.tag.outputs.tag }}
+          build-args: |
+            NEXT_PUBLIC_AGENTFIRM_API=http
+            NEXT_PUBLIC_AGENTFIRM_AUTH=api
+            NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=${{ vars.PADDLE_CLIENT_TOKEN }}
+            NEXT_PUBLIC_PADDLE_ENV=${{ vars.PADDLE_ENV }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+      - if: ${{ !inputs.tag }}
+        name: Backup image
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy/backup
+          push: true
+          tags: ${{ env.REGISTRY }}/agentfirm-backup:${{ steps.tag.outputs.tag }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: production  # protect with required reviewers in GitHub settings
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ github.event.workflow_run.head_sha || github.sha }}" }
+      - name: SSH setup
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+      - name: "Ship deploy files (never .env, which lives only on the server)"
+        run: rsync -az --delete --exclude '.env*' --exclude '.current_tag' --exclude '.previous_tag' --exclude 'observability/metrics_token' deploy/ infra/ deploy@${{ secrets.VPS_HOST }}:/opt/agentfirm/ --relative
+      - name: Deploy
+        run: ssh deploy@${{ secrets.VPS_HOST }} "cd /opt/agentfirm/deploy && REGISTRY=ghcr.io/${{ github.repository_owner }} ./deploy.sh ${{ needs.build.outputs.tag }}"

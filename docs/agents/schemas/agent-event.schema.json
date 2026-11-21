@@ -1,0 +1,1057 @@
+{
+  "$defs": {
+    "AgentError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "retriable": {
+          "title": "Retriable",
+          "type": "boolean"
+        },
+        "step": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retriable"
+      ],
+      "title": "AgentError",
+      "type": "object"
+    },
+    "ApprovalRequested": {
+      "additionalProperties": false,
+      "properties": {
+        "approval_id": {
+          "format": "uuid",
+          "title": "Approval Id",
+          "type": "string"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "preview": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Preview"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "side_effect": {
+          "$ref": "#/$defs/SideEffect"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "tool": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "title": "Tool",
+          "type": "string"
+        },
+        "type": {
+          "const": "approval.requested",
+          "default": "approval.requested",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "approval_id",
+        "tool",
+        "side_effect",
+        "title"
+      ],
+      "title": "ApprovalRequested",
+      "type": "object"
+    },
+    "ApprovalResolved": {
+      "additionalProperties": false,
+      "properties": {
+        "approval_id": {
+          "format": "uuid",
+          "title": "Approval Id",
+          "type": "string"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approved",
+            "rejected",
+            "expired"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "type": {
+          "const": "approval.resolved",
+          "default": "approval.resolved",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "approval_id",
+        "decision"
+      ],
+      "title": "ApprovalResolved",
+      "type": "object"
+    },
+    "ArtifactCreated": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "type": {
+          "const": "artifact.created",
+          "default": "artifact.created",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "artifact"
+      ],
+      "title": "ArtifactCreated",
+      "type": "object"
+    },
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "ErrorCode": {
+      "enum": [
+        "invalid_input",
+        "missing_context",
+        "tool_error",
+        "tool_timeout",
+        "model_error",
+        "model_unavailable",
+        "budget_exceeded",
+        "permission_denied",
+        "approval_rejected",
+        "approval_expired",
+        "policy_violation",
+        "unsafe_content",
+        "upstream_data_invalid",
+        "cancelled",
+        "internal"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
+    "ExecutionStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "waiting_approval",
+            "paused",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "type": {
+          "const": "execution.status",
+          "default": "execution.status",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "status"
+      ],
+      "title": "ExecutionStatus",
+      "type": "object"
+    },
+    "Log": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "level": {
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "title": "Level",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 2000,
+          "title": "Message",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "type": {
+          "const": "log",
+          "default": "log",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "level",
+        "message"
+      ],
+      "title": "Log",
+      "type": "object"
+    },
+    "ModelCalled": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "capability": {
+          "enum": [
+            "reasoning",
+            "text",
+            "code",
+            "summarize",
+            "classify",
+            "creative",
+            "vision",
+            "long_context",
+            "embeddings"
+          ],
+          "title": "Capability",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "fallback_index": {
+          "description": "0 = primary route, n = n-th fallback",
+          "minimum": 0,
+          "title": "Fallback Index",
+          "type": "integer"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "tokens_in": {
+          "title": "Tokens In",
+          "type": "integer"
+        },
+        "tokens_out": {
+          "title": "Tokens Out",
+          "type": "integer"
+        },
+        "type": {
+          "const": "model.called",
+          "default": "model.called",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "capability",
+        "provider",
+        "model",
+        "fallback_index",
+        "tokens_in",
+        "tokens_out"
+      ],
+      "title": "ModelCalled",
+      "type": "object"
+    },
+    "PlanCreated": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/PlanStepRef"
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        },
+        "type": {
+          "const": "plan.created",
+          "default": "plan.created",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "steps"
+      ],
+      "title": "PlanCreated",
+      "type": "object"
+    },
+    "PlanStepRef": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{1,47}$",
+              "type": "string"
+            },
+            {
+              "const": "orchestrator",
+              "type": "string"
+            }
+          ],
+          "title": "Agent"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "weight": {
+          "exclusiveMinimum": 0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "weight",
+        "agent"
+      ],
+      "title": "PlanStepRef",
+      "type": "object"
+    },
+    "PlanUpdated": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/PlanStepRef"
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        },
+        "type": {
+          "const": "plan.updated",
+          "default": "plan.updated",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "steps",
+        "reason"
+      ],
+      "title": "PlanUpdated",
+      "type": "object"
+    },
+    "Progress": {
+      "additionalProperties": false,
+      "description": "Emitted only by the engine, computed from plan weights \u2014 agents cannot emit it.",
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "completed_weight": {
+          "minimum": 0,
+          "title": "Completed Weight",
+          "type": "number"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "total_weight": {
+          "exclusiveMinimum": 0,
+          "title": "Total Weight",
+          "type": "number"
+        },
+        "type": {
+          "const": "progress",
+          "default": "progress",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "completed_weight",
+        "total_weight"
+      ],
+      "title": "Progress",
+      "type": "object"
+    },
+    "SideEffect": {
+      "description": "What a tool can change. Anything beyond INTERNAL must be approval-gated.",
+      "enum": [
+        "none",
+        "internal",
+        "external",
+        "financial",
+        "destructive"
+      ],
+      "title": "SideEffect",
+      "type": "string"
+    },
+    "StepCompleted": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "step": {
+          "title": "Step",
+          "type": "string"
+        },
+        "type": {
+          "const": "step.completed",
+          "default": "step.completed",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "step"
+      ],
+      "title": "StepCompleted",
+      "type": "object"
+    },
+    "StepFailed": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "error": {
+          "$ref": "#/$defs/AgentError"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "step": {
+          "title": "Step",
+          "type": "string"
+        },
+        "type": {
+          "const": "step.failed",
+          "default": "step.failed",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "step",
+        "error"
+      ],
+      "title": "StepFailed",
+      "type": "object"
+    },
+    "StepStarted": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "step": {
+          "title": "Step",
+          "type": "string"
+        },
+        "type": {
+          "const": "step.started",
+          "default": "step.started",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "step"
+      ],
+      "title": "StepStarted",
+      "type": "object"
+    },
+    "SubtaskCompleted": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "partial",
+            "failed",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "subtask_execution_id": {
+          "format": "uuid",
+          "title": "Subtask Execution Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "subtask.completed",
+          "default": "subtask.completed",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "subtask_execution_id",
+        "status"
+      ],
+      "title": "SubtaskCompleted",
+      "type": "object"
+    },
+    "SubtaskSpawned": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "pattern": "^[a-z][a-z0-9_]{1,47}$",
+          "title": "Agent",
+          "type": "string"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "depends_on": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "subtask_execution_id": {
+          "format": "uuid",
+          "title": "Subtask Execution Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "subtask.spawned",
+          "default": "subtask.spawned",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "subtask_execution_id",
+        "agent"
+      ],
+      "title": "SubtaskSpawned",
+      "type": "object"
+    },
+    "TokenDelta": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "type": {
+          "const": "token.delta",
+          "default": "token.delta",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "text"
+      ],
+      "title": "TokenDelta",
+      "type": "object"
+    },
+    "ToolCalled": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "call_id": {
+          "title": "Call Id",
+          "type": "string"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "input_summary": {
+          "description": "Redacted summary \u2014 never secrets",
+          "maxLength": 500,
+          "title": "Input Summary",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "side_effect": {
+          "$ref": "#/$defs/SideEffect"
+        },
+        "tool": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "title": "Tool",
+          "type": "string"
+        },
+        "type": {
+          "const": "tool.called",
+          "default": "tool.called",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "call_id",
+        "tool",
+        "side_effect",
+        "input_summary"
+      ],
+      "title": "ToolCalled",
+      "type": "object"
+    },
+    "ToolResult": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "call_id": {
+          "title": "Call Id",
+          "type": "string"
+        },
+        "duration_ms": {
+          "title": "Duration Ms",
+          "type": "integer"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "seq": {
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "error",
+            "timeout",
+            "blocked"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "tool": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "title": "Tool",
+          "type": "string"
+        },
+        "type": {
+          "const": "tool.result",
+          "default": "tool.result",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "seq",
+        "at",
+        "call_id",
+        "tool",
+        "status",
+        "duration_ms"
+      ],
+      "title": "ToolResult",
+      "type": "object"
+    }
+  },
+  "$id": "https://agentfirm.app/schemas/agent-event.json",
+  "additionalProperties": false,
+  "properties": {
+    "event": {
+      "discriminator": {
+        "mapping": {
+          "approval.requested": "#/$defs/ApprovalRequested",
+          "approval.resolved": "#/$defs/ApprovalResolved",
+          "artifact.created": "#/$defs/ArtifactCreated",
+          "execution.status": "#/$defs/ExecutionStatus",
+          "log": "#/$defs/Log",
+          "model.called": "#/$defs/ModelCalled",
+          "plan.created": "#/$defs/PlanCreated",
+          "plan.updated": "#/$defs/PlanUpdated",
+          "progress": "#/$defs/Progress",
+          "step.completed": "#/$defs/StepCompleted",
+          "step.failed": "#/$defs/StepFailed",
+          "step.started": "#/$defs/StepStarted",
+          "subtask.completed": "#/$defs/SubtaskCompleted",
+          "subtask.spawned": "#/$defs/SubtaskSpawned",
+          "token.delta": "#/$defs/TokenDelta",
+          "tool.called": "#/$defs/ToolCalled",
+          "tool.result": "#/$defs/ToolResult"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PlanCreated"
+        },
+        {
+          "$ref": "#/$defs/PlanUpdated"
+        },
+        {
+          "$ref": "#/$defs/StepStarted"
+        },
+        {
+          "$ref": "#/$defs/StepCompleted"
+        },
+        {
+          "$ref": "#/$defs/StepFailed"
+        },
+        {
+          "$ref": "#/$defs/ToolCalled"
+        },
+        {
+          "$ref": "#/$defs/ToolResult"
+        },
+        {
+          "$ref": "#/$defs/ModelCalled"
+        },
+        {
+          "$ref": "#/$defs/TokenDelta"
+        },
+        {
+          "$ref": "#/$defs/ApprovalRequested"
+        },
+        {
+          "$ref": "#/$defs/ApprovalResolved"
+        },
+        {
+          "$ref": "#/$defs/ArtifactCreated"
+        },
+        {
+          "$ref": "#/$defs/SubtaskSpawned"
+        },
+        {
+          "$ref": "#/$defs/SubtaskCompleted"
+        },
+        {
+          "$ref": "#/$defs/Progress"
+        },
+        {
+          "$ref": "#/$defs/ExecutionStatus"
+        },
+        {
+          "$ref": "#/$defs/Log"
+        }
+      ],
+      "title": "Event"
+    }
+  },
+  "required": [
+    "event"
+  ],
+  "title": "EventEnvelope",
+  "type": "object"
+}

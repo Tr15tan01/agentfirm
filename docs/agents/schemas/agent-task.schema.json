@@ -1,0 +1,309 @@
+{
+  "$defs": {
+    "Budget": {
+      "additionalProperties": false,
+      "properties": {
+        "deadline": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deadline"
+        },
+        "max_credits": {
+          "minimum": 1,
+          "title": "Max Credits",
+          "type": "integer"
+        },
+        "max_runtime_seconds": {
+          "minimum": 1,
+          "title": "Max Runtime Seconds",
+          "type": "integer"
+        },
+        "max_steps": {
+          "minimum": 1,
+          "title": "Max Steps",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_credits",
+        "max_runtime_seconds",
+        "max_steps"
+      ],
+      "title": "Budget",
+      "type": "object"
+    },
+    "ContextPack": {
+      "additionalProperties": false,
+      "properties": {
+        "conversation_summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Conversation Summary"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/FileRef"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "memory": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Memory",
+          "type": "object"
+        },
+        "prior_results": {
+          "items": {
+            "$ref": "#/$defs/SubtaskResultRef"
+          },
+          "title": "Prior Results",
+          "type": "array"
+        },
+        "project_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project Id"
+        },
+        "untrusted": {
+          "items": {
+            "$ref": "#/$defs/UntrustedContent"
+          },
+          "title": "Untrusted",
+          "type": "array"
+        }
+      },
+      "title": "ContextPack",
+      "type": "object"
+    },
+    "FileRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind"
+      ],
+      "title": "FileRef",
+      "type": "object"
+    },
+    "SubtaskResultRef": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "pattern": "^[a-z][a-z0-9_]{1,47}$",
+          "title": "Agent",
+          "type": "string"
+        },
+        "artifact_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Artifact Ids",
+          "type": "array"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "agent",
+        "summary"
+      ],
+      "title": "SubtaskResultRef",
+      "type": "object"
+    },
+    "UntrustedContent": {
+      "additionalProperties": false,
+      "description": "Wrapper for anything not written by the requesting user (web pages, files, tool\noutput, other agents' raw results). The engine renders it inside explicit data\ndelimiters; it can never grant permissions or change the plan's tool set.",
+      "properties": {
+        "content": {
+          "maxLength": 200000,
+          "title": "Content",
+          "type": "string"
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Origin"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "content"
+      ],
+      "title": "UntrustedContent",
+      "type": "object"
+    }
+  },
+  "$id": "https://agentfirm.app/schemas/agent-task.json",
+  "additionalProperties": false,
+  "description": "Orchestrator \u2192 agent invocation. Identical whether the caller is a user request,\nthe orchestrator, or another agent's handoff (with delegation_depth > 0).",
+  "properties": {
+    "agent": {
+      "pattern": "^[a-z][a-z0-9_]{1,47}$",
+      "title": "Agent",
+      "type": "string"
+    },
+    "agent_version": {
+      "title": "Agent Version",
+      "type": "string"
+    },
+    "budget": {
+      "$ref": "#/$defs/Budget"
+    },
+    "context": {
+      "$ref": "#/$defs/ContextPack"
+    },
+    "delegation_depth": {
+      "default": 0,
+      "maximum": 2,
+      "minimum": 0,
+      "title": "Delegation Depth",
+      "type": "integer"
+    },
+    "deliverables_expected": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Deliverables Expected",
+      "type": "array"
+    },
+    "execution_id": {
+      "format": "uuid",
+      "title": "Execution Id",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "intent": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Pre-classified intent; agent re-classifies if None",
+      "title": "Intent"
+    },
+    "locale": {
+      "default": "en",
+      "title": "Locale",
+      "type": "string"
+    },
+    "objective": {
+      "maxLength": 8000,
+      "minLength": 1,
+      "title": "Objective",
+      "type": "string"
+    },
+    "org_id": {
+      "format": "uuid",
+      "title": "Org Id",
+      "type": "string"
+    },
+    "parameters": {
+      "additionalProperties": true,
+      "title": "Parameters",
+      "type": "object"
+    },
+    "parent_execution_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Execution Id"
+    },
+    "requested_by": {
+      "format": "uuid",
+      "title": "Requested By",
+      "type": "string"
+    },
+    "task_id": {
+      "format": "uuid",
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "execution_id",
+    "org_id",
+    "requested_by",
+    "agent",
+    "agent_version",
+    "objective",
+    "budget",
+    "idempotency_key"
+  ],
+  "title": "AgentTask",
+  "type": "object"
+}

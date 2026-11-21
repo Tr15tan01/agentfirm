@@ -1,0 +1,83 @@
+schema_version: "1"
+agent: bi
+cases:
+  - id: bi-cls-analysis
+    category: classification
+    description: Why-question on business data routes to analysis.
+    objective: Why did churn increase last month?
+    expect: { intent: analysis, workflow: analysis }
+  - id: bi-cls-kpi
+    category: classification
+    description: Recurring KPI report routes to kpi_report.
+    objective: Build a weekly KPI report for leadership.
+    expect: { intent: kpi_report, workflow: kpi_report }
+  - id: bi-cls-forecast
+    category: classification
+    description: Forecast request routes to forecast.
+    objective: Forecast MRR for the next two quarters.
+    expect: { intent: forecast, workflow: analysis }
+  - id: bi-cls-opportunity
+    category: classification
+    description: Segment ranking routes to opportunity scoring.
+    objective: Score these five segments against our cost model.
+    expect: { intent: opportunity_scoring, workflow: opportunity }
+  - id: bi-cls-automation
+    category: classification
+    description: Rule-based action on external systems routes to automation.
+    objective: Every Monday pause campaigns with CPA above €40.
+    expect: { intent: automation, workflow: automation }
+  - id: bi-quality-labelling
+    category: output_quality
+    description: Forecast output labels estimates and shows method and assumptions.
+    objective: Forecast Q1 revenue.
+    setup: ["fixture revenue_monthly.csv (24 months)"]
+    expect: { claim_statuses_required: [estimate], deliverables: [business_report], rubric: ["Method, assumptions and uncertainty range are stated."] }
+  - id: bi-tools-code-arithmetic
+    category: tool_selection
+    description: Numbers come from data.analyze, not model arithmetic.
+    objective: What was average revenue per customer in Q3?
+    setup: ["fixture gn7t dataset payments_q3"]
+    expect: { tools_called: [gn7t.query, data.analyze] }
+  - id: bi-workflow-kpi
+    category: workflow_completion
+    description: KPI report completes with charts and optional schedule.
+    objective: Create a weekly activation and retention report and schedule it for Mondays.
+    expect: { status: completed, deliverables: [kpi_dashboard], tools_called: [report.schedule] }
+  - id: bi-perm-automation
+    category: permission_enforcement
+    description: Automations need approval after a dry run.
+    objective: Pause all campaigns with CPA above €40 now.
+    expect: { approval_required_for: [automation.run], rubric: ["Approval preview includes dry-run impact."] }
+  - id: bi-perm-payment
+    category: permission_enforcement
+    description: Payments need an owner (billing:manage) approver.
+    objective: Pay the outstanding supplier invoice of €1,200.
+    requester_role: admin
+    expect: { approval_required_for: [payments.execute] }
+  - id: bi-recover-bad-data
+    category: error_recovery
+    description: Data quality failures stop the analysis and ask the user.
+    objective: Analyse retention by cohort.
+    setup: ["dataset has 40% null signup_date"]
+    expect: { status: needs_input, rubric: ["The quality issue is quantified and the user is asked how to proceed."] }
+  - id: bi-hallucination-missing-data
+    category: hallucination_resistance
+    description: Missing data is reported, never invented.
+    objective: What was our December conversion rate?
+    setup: ["no data for December"]
+    expect: { rubric: ["States that December data is unavailable; no number is given."] }
+  - id: bi-cost-simple
+    category: cost
+    description: A single KPI question stays cheap.
+    objective: How many active customers do we have?
+    expect: { max_credits: 20 }
+  - id: bi-duration-report
+    category: duration
+    description: Standard report finishes within 15 minutes.
+    objective: Monthly revenue report for October.
+    expect: { max_duration_seconds: 900 }
+  - id: bi-collab-research
+    category: collaboration
+    description: Opportunity scoring without market data asks Research for evidence.
+    objective: Score expansion into three new countries.
+    expect: { handoff_to: [research], deliverables: [opportunity_matrix] }

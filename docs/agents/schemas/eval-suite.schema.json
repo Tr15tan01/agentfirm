@@ -1,0 +1,302 @@
+{
+  "$defs": {
+    "ErrorCode": {
+      "enum": [
+        "invalid_input",
+        "missing_context",
+        "tool_error",
+        "tool_timeout",
+        "model_error",
+        "model_unavailable",
+        "budget_exceeded",
+        "permission_denied",
+        "approval_rejected",
+        "approval_expired",
+        "policy_violation",
+        "unsafe_content",
+        "upstream_data_invalid",
+        "cancelled",
+        "internal"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
+    "EvalCase": {
+      "additionalProperties": false,
+      "properties": {
+        "agents": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{1,47}$",
+            "type": "string"
+          },
+          "title": "Agents",
+          "type": "array"
+        },
+        "category": {
+          "enum": [
+            "classification",
+            "output_quality",
+            "tool_selection",
+            "workflow_completion",
+            "permission_enforcement",
+            "error_recovery",
+            "hallucination_resistance",
+            "cost",
+            "duration",
+            "collaboration"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "expect": {
+          "$ref": "#/$defs/EvalExpectation"
+        },
+        "id": {
+          "pattern": "^[a-z]+-[a-z0-9-]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "objective": {
+          "title": "Objective",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        },
+        "requester_role": {
+          "default": "member",
+          "enum": [
+            "owner",
+            "admin",
+            "member",
+            "viewer"
+          ],
+          "title": "Requester Role",
+          "type": "string"
+        },
+        "setup": {
+          "description": "Fixture directives for the harness (stubbed tools, injected failures)",
+          "items": {
+            "type": "string"
+          },
+          "title": "Setup",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "category",
+        "description",
+        "objective",
+        "expect"
+      ],
+      "title": "EvalCase",
+      "type": "object"
+    },
+    "EvalExpectation": {
+      "additionalProperties": false,
+      "properties": {
+        "approval_required_for": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "Approval Required For",
+          "type": "array"
+        },
+        "claim_statuses_required": {
+          "items": {
+            "enum": [
+              "verified",
+              "assumption",
+              "estimate",
+              "speculative"
+            ],
+            "type": "string"
+          },
+          "title": "Claim Statuses Required",
+          "type": "array"
+        },
+        "deliverables": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Deliverables",
+          "type": "array"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "handoff_edges": {
+          "description": "Accepted handoffs, as 'from->to'",
+          "items": {
+            "type": "string"
+          },
+          "title": "Handoff Edges",
+          "type": "array"
+        },
+        "handoff_to": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{1,47}$",
+            "type": "string"
+          },
+          "title": "Handoff To",
+          "type": "array"
+        },
+        "intent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intent"
+        },
+        "max_credits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Credits"
+        },
+        "max_duration_seconds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Duration Seconds"
+        },
+        "rubric": {
+          "description": "LLM-judge / human rubric statements that must hold",
+          "items": {
+            "type": "string"
+          },
+          "title": "Rubric",
+          "type": "array"
+        },
+        "skipped_agents": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{1,47}$",
+            "type": "string"
+          },
+          "title": "Skipped Agents",
+          "type": "array"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "enum": [
+                "completed",
+                "partial",
+                "needs_input",
+                "failed",
+                "cancelled"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "subtask_agents": {
+          "description": "Agents of the subtasks, in creation order",
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{1,47}$",
+            "type": "string"
+          },
+          "title": "Subtask Agents",
+          "type": "array"
+        },
+        "tools_called": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "Tools Called",
+          "type": "array"
+        },
+        "tools_not_called": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "Tools Not Called",
+          "type": "array"
+        },
+        "workflow": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workflow"
+        }
+      },
+      "title": "EvalExpectation",
+      "type": "object"
+    }
+  },
+  "$id": "https://agentfirm.app/schemas/eval-suite.json",
+  "additionalProperties": false,
+  "properties": {
+    "agent": {
+      "pattern": "^[a-z][a-z0-9_]{1,47}$",
+      "title": "Agent",
+      "type": "string"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/EvalCase"
+      },
+      "minItems": 10,
+      "title": "Cases",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "agent",
+    "cases"
+  ],
+  "title": "EvalSuite",
+  "type": "object"
+}

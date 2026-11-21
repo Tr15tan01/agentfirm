@@ -1,0 +1,995 @@
+{
+  "$defs": {
+    "ApprovalPolicy": {
+      "enum": [
+        "auto",
+        "require_approval",
+        "deny"
+      ],
+      "title": "ApprovalPolicy",
+      "type": "string"
+    },
+    "ApprovalRule": {
+      "additionalProperties": false,
+      "properties": {
+        "approver_permission": {
+          "default": "approvals:decide",
+          "title": "Approver Permission",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "on_timeout": {
+          "default": "expire_and_replan",
+          "enum": [
+            "expire_and_replan",
+            "cancel_execution"
+          ],
+          "title": "On Timeout",
+          "type": "string"
+        },
+        "preview_required": {
+          "default": true,
+          "title": "Preview Required",
+          "type": "boolean"
+        },
+        "timeout_hours": {
+          "default": 72,
+          "maximum": 720,
+          "minimum": 1,
+          "title": "Timeout Hours",
+          "type": "integer"
+        },
+        "tools": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Tools",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "description",
+        "tools"
+      ],
+      "title": "ApprovalRule",
+      "type": "object"
+    },
+    "CollaborationPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "accepts_from": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Accepts From",
+          "type": "array"
+        },
+        "can_delegate_to": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{1,47}$",
+            "type": "string"
+          },
+          "title": "Can Delegate To",
+          "type": "array"
+        },
+        "provides": {
+          "items": {
+            "$ref": "#/$defs/SharedCapability"
+          },
+          "title": "Provides",
+          "type": "array"
+        },
+        "shared_capabilities": {
+          "items": {
+            "$ref": "#/$defs/SharedCapability"
+          },
+          "title": "Shared Capabilities",
+          "type": "array"
+        }
+      },
+      "title": "CollaborationPolicy",
+      "type": "object"
+    },
+    "Deliverable": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "markdown",
+            "pdf",
+            "docx",
+            "xlsx",
+            "csv",
+            "json",
+            "code_patch",
+            "chart",
+            "ideas",
+            "email_draft",
+            "calendar_proposal"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "format",
+        "description"
+      ],
+      "title": "Deliverable",
+      "type": "object"
+    },
+    "ErrorCode": {
+      "enum": [
+        "invalid_input",
+        "missing_context",
+        "tool_error",
+        "tool_timeout",
+        "model_error",
+        "model_unavailable",
+        "budget_exceeded",
+        "permission_denied",
+        "approval_rejected",
+        "approval_expired",
+        "policy_violation",
+        "unsafe_content",
+        "upstream_data_invalid",
+        "cancelled",
+        "internal"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
+    "ExecutionLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "max_credits": {
+          "maximum": 5000,
+          "minimum": 1,
+          "title": "Max Credits",
+          "type": "integer"
+        },
+        "max_delegation_depth": {
+          "default": 1,
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Max Delegation Depth",
+          "type": "integer"
+        },
+        "max_parallel_subtasks": {
+          "default": 1,
+          "maximum": 8,
+          "minimum": 1,
+          "title": "Max Parallel Subtasks",
+          "type": "integer"
+        },
+        "max_runtime_seconds": {
+          "maximum": 21600,
+          "minimum": 30,
+          "title": "Max Runtime Seconds",
+          "type": "integer"
+        },
+        "max_steps": {
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Max Steps",
+          "type": "integer"
+        },
+        "max_tool_calls": {
+          "maximum": 500,
+          "minimum": 0,
+          "title": "Max Tool Calls",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_steps",
+        "max_runtime_seconds",
+        "max_credits",
+        "max_tool_calls"
+      ],
+      "title": "ExecutionLimits",
+      "type": "object"
+    },
+    "InputParam": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "string",
+            "text",
+            "number",
+            "boolean",
+            "enum",
+            "file",
+            "list",
+            "url",
+            "date"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "description"
+      ],
+      "title": "InputParam",
+      "type": "object"
+    },
+    "Intent": {
+      "additionalProperties": false,
+      "properties": {
+        "counter_examples": {
+          "description": "Requests that look similar but belong elsewhere",
+          "items": {
+            "type": "string"
+          },
+          "title": "Counter Examples",
+          "type": "array"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "examples": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "title": "Examples",
+          "type": "array"
+        },
+        "key": {
+          "pattern": "^[a-z][a-z0-9_]+$",
+          "title": "Key",
+          "type": "string"
+        },
+        "min_confidence": {
+          "default": 0.6,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Min Confidence",
+          "type": "number"
+        },
+        "workflow": {
+          "title": "Workflow",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "description",
+        "workflow",
+        "examples"
+      ],
+      "title": "Intent",
+      "type": "object"
+    },
+    "KnowledgeAccess": {
+      "additionalProperties": false,
+      "properties": {
+        "citations_required": {
+          "default": false,
+          "title": "Citations Required",
+          "type": "boolean"
+        },
+        "pii": {
+          "default": "minimise",
+          "enum": [
+            "avoid",
+            "minimise"
+          ],
+          "title": "Pii",
+          "type": "string"
+        },
+        "scope": {
+          "default": "workspace",
+          "enum": [
+            "project",
+            "workspace"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "enum": [
+              "workspace_files",
+              "project_knowledge",
+              "conversation_history",
+              "web",
+              "connectors",
+              "brand_memory",
+              "repositories",
+              "idea_board",
+              "structured_data",
+              "agent_results"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Sources",
+          "type": "array"
+        },
+        "untrusted_sources": {
+          "items": {
+            "enum": [
+              "workspace_files",
+              "project_knowledge",
+              "conversation_history",
+              "web",
+              "connectors",
+              "brand_memory",
+              "repositories",
+              "idea_board",
+              "structured_data",
+              "agent_results"
+            ],
+            "type": "string"
+          },
+          "title": "Untrusted Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "sources"
+      ],
+      "title": "KnowledgeAccess",
+      "type": "object"
+    },
+    "MemoryPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_memory": {
+          "description": "Named org-scoped memories, e.g. brand_voice",
+          "items": {
+            "type": "string"
+          },
+          "title": "Agent Memory",
+          "type": "array"
+        },
+        "conversation": {
+          "default": true,
+          "title": "Conversation",
+          "type": "boolean"
+        },
+        "project": {
+          "default": true,
+          "title": "Project",
+          "type": "boolean"
+        },
+        "retention_days": {
+          "default": 365,
+          "maximum": 3650,
+          "minimum": 1,
+          "title": "Retention Days",
+          "type": "integer"
+        },
+        "user_preferences": {
+          "default": false,
+          "title": "User Preferences",
+          "type": "boolean"
+        },
+        "writes_require_confirmation": {
+          "default": false,
+          "title": "Writes Require Confirmation",
+          "type": "boolean"
+        }
+      },
+      "title": "MemoryPolicy",
+      "type": "object"
+    },
+    "ModelPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "description": "Capabilities this agent may request from the Model Gateway",
+          "items": {
+            "enum": [
+              "reasoning",
+              "text",
+              "code",
+              "summarize",
+              "classify",
+              "creative",
+              "vision",
+              "long_context",
+              "embeddings"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "default_capability": {
+          "enum": [
+            "reasoning",
+            "text",
+            "code",
+            "summarize",
+            "classify",
+            "creative",
+            "vision",
+            "long_context",
+            "embeddings"
+          ],
+          "title": "Default Capability",
+          "type": "string"
+        },
+        "max_output_tokens": {
+          "default": 4096,
+          "maximum": 64000,
+          "minimum": 256,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "preferences": {
+          "description": "Routing hints for super-admins (non-binding)",
+          "items": {
+            "type": "string"
+          },
+          "title": "Preferences",
+          "type": "array"
+        },
+        "temperature": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "reasoning",
+              "text",
+              "code",
+              "summarize",
+              "classify",
+              "creative",
+              "vision",
+              "long_context",
+              "embeddings"
+            ]
+          },
+          "title": "Temperature",
+          "type": "object"
+        }
+      },
+      "required": [
+        "capabilities",
+        "default_capability"
+      ],
+      "title": "ModelPolicy",
+      "type": "object"
+    },
+    "QualityGate": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "direction": {
+          "enum": [
+            "min",
+            "max"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "metric": {
+          "title": "Metric",
+          "type": "string"
+        },
+        "threshold": {
+          "title": "Threshold",
+          "type": "number"
+        }
+      },
+      "required": [
+        "metric",
+        "threshold",
+        "direction",
+        "description"
+      ],
+      "title": "QualityGate",
+      "type": "object"
+    },
+    "RecoveryRule": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "max_attempts": {
+          "default": 1,
+          "maximum": 5,
+          "minimum": 0,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "strategy": {
+          "enum": [
+            "retry_backoff",
+            "fallback_model",
+            "replan",
+            "ask_user",
+            "partial_result",
+            "fail"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        }
+      },
+      "required": [
+        "error",
+        "strategy"
+      ],
+      "title": "RecoveryRule",
+      "type": "object"
+    },
+    "SharedCapability": {
+      "description": "Reusable services (brief \u00a721.8) \u2014 implemented once, invoked by many agents.",
+      "enum": [
+        "brainstorming_engine",
+        "research_retrieval_engine",
+        "document_processing_engine",
+        "planning_engine",
+        "web_search",
+        "code_execution",
+        "data_analysis",
+        "memory_service"
+      ],
+      "title": "SharedCapability",
+      "type": "string"
+    },
+    "ToolGrant": {
+      "additionalProperties": false,
+      "properties": {
+        "approval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApprovalPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "max_calls_per_run": {
+          "default": 20,
+          "maximum": 500,
+          "minimum": 1,
+          "title": "Max Calls Per Run",
+          "type": "integer"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "tool": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool"
+      ],
+      "title": "ToolGrant",
+      "type": "object"
+    },
+    "Workflow": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "key": {
+          "pattern": "^[a-z][a-z0-9_]+$",
+          "title": "Key",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/WorkflowStep"
+          },
+          "minItems": 2,
+          "title": "Steps",
+          "type": "array"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "description",
+        "steps"
+      ],
+      "title": "Workflow",
+      "type": "object"
+    },
+    "WorkflowStep": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": {
+          "anyOf": [
+            {
+              "enum": [
+                "reasoning",
+                "text",
+                "code",
+                "summarize",
+                "classify",
+                "creative",
+                "vision",
+                "long_context",
+                "embeddings"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capability"
+        },
+        "checkpoint": {
+          "default": true,
+          "title": "Checkpoint",
+          "type": "boolean"
+        },
+        "key": {
+          "pattern": "^[a-z][a-z0-9_]+$",
+          "title": "Key",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "plan",
+            "classify",
+            "retrieve",
+            "model",
+            "tool",
+            "delegate",
+            "approval",
+            "verify",
+            "synthesize",
+            "human_input"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "on_failure": {
+          "default": "retry",
+          "enum": [
+            "retry",
+            "fallback_model",
+            "skip",
+            "replan",
+            "ask_user",
+            "fail"
+          ],
+          "title": "On Failure",
+          "type": "string"
+        },
+        "parallel_group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Steps sharing a group may run concurrently",
+          "title": "Parallel Group"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "tools": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "Tools",
+          "type": "array"
+        },
+        "weight": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 10,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "kind"
+      ],
+      "title": "WorkflowStep",
+      "type": "object"
+    }
+  },
+  "$id": "https://agentfirm.app/schemas/agent-manifest.json",
+  "additionalProperties": false,
+  "description": "The standard agent definition (brief \u00a721.1, items 1-20).",
+  "properties": {
+    "approvals": {
+      "items": {
+        "$ref": "#/$defs/ApprovalRule"
+      },
+      "title": "Approvals",
+      "type": "array"
+    },
+    "capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 3,
+      "title": "Capabilities",
+      "type": "array"
+    },
+    "changelog": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Changelog",
+      "type": "array"
+    },
+    "collaboration": {
+      "$ref": "#/$defs/CollaborationPolicy"
+    },
+    "deliverables": {
+      "items": {
+        "$ref": "#/$defs/Deliverable"
+      },
+      "minItems": 1,
+      "title": "Deliverables",
+      "type": "array"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "inputs": {
+      "items": {
+        "$ref": "#/$defs/InputParam"
+      },
+      "title": "Inputs",
+      "type": "array"
+    },
+    "intents": {
+      "items": {
+        "$ref": "#/$defs/Intent"
+      },
+      "minItems": 2,
+      "title": "Intents",
+      "type": "array"
+    },
+    "key": {
+      "pattern": "^[a-z][a-z0-9_]{1,47}$",
+      "title": "Key",
+      "type": "string"
+    },
+    "knowledge": {
+      "$ref": "#/$defs/KnowledgeAccess"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "limits": {
+      "$ref": "#/$defs/ExecutionLimits"
+    },
+    "memory": {
+      "$ref": "#/$defs/MemoryPolicy"
+    },
+    "mission": {
+      "title": "Mission",
+      "type": "string"
+    },
+    "models": {
+      "$ref": "#/$defs/ModelPolicy"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "permissions": {
+      "description": "RBAC permissions the requesting user needs to invoke this agent",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Permissions",
+      "type": "array"
+    },
+    "quality": {
+      "items": {
+        "$ref": "#/$defs/QualityGate"
+      },
+      "minItems": 2,
+      "title": "Quality",
+      "type": "array"
+    },
+    "recovery": {
+      "items": {
+        "$ref": "#/$defs/RecoveryRule"
+      },
+      "minItems": 1,
+      "title": "Recovery",
+      "type": "array"
+    },
+    "responsibilities": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 3,
+      "title": "Responsibilities",
+      "type": "array"
+    },
+    "rules": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Rules",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scope_in": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 2,
+      "title": "Scope In",
+      "type": "array"
+    },
+    "scope_out": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 2,
+      "title": "Scope Out",
+      "type": "array"
+    },
+    "status": {
+      "default": "draft",
+      "enum": [
+        "draft",
+        "published"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "tools": {
+      "items": {
+        "$ref": "#/$defs/ToolGrant"
+      },
+      "minItems": 1,
+      "title": "Tools",
+      "type": "array"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    },
+    "workflows": {
+      "items": {
+        "$ref": "#/$defs/Workflow"
+      },
+      "minItems": 1,
+      "title": "Workflows",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "key",
+    "name",
+    "version",
+    "changelog",
+    "description",
+    "mission",
+    "responsibilities",
+    "scope_in",
+    "scope_out",
+    "limitations",
+    "capabilities",
+    "intents",
+    "workflows",
+    "tools",
+    "knowledge",
+    "memory",
+    "models",
+    "deliverables",
+    "collaboration",
+    "permissions",
+    "recovery",
+    "limits",
+    "quality",
+    "rules"
+  ],
+  "title": "AgentManifest",
+  "type": "object"
+}

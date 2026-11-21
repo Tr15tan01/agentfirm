@@ -1,0 +1,271 @@
+@import "tailwindcss";
+
+/* ──────────────────────────────────────────────────────────────
+   AgentFirm design tokens
+   Themes are selected with data-theme on <html> (set pre-paint).
+   ────────────────────────────────────────────────────────────── */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #090b12;
+  --bg-2: #101421;
+  --card: #141a29;
+  --card-2: #182033;
+  --border: #252d40;
+  --border-strong: #323c55;
+  --accent: #648bff;
+  --accent-2: #a77bff;
+  --cyan: #48d9e8;
+  --fg: #f1f4fc;
+  --fg-2: #929cb2;
+  --fg-3: #6b7590;
+  --ok: #34d399;
+  --warn: #f5b94a;
+  --err: #f2667a;
+  --glass: rgb(16 20 33 / 0.62);
+  --shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -16px rgb(0 0 0 / 0.6);
+  --glow: 0 0 0 1px rgb(100 139 255 / 0.35), 0 0 28px -6px rgb(100 139 255 / 0.45);
+  --glow-violet: 0 0 0 1px rgb(167 123 255 / 0.35), 0 0 28px -6px rgb(167 123 255 / 0.45);
+  --grid: rgb(146 156 178 / 0.12);
+  --canvas-wash:
+    radial-gradient(900px 500px at 12% -10%, rgb(100 139 255 / 0.10), transparent 60%),
+    radial-gradient(700px 420px at 92% 0%, rgb(167 123 255 / 0.08), transparent 60%),
+    radial-gradient(600px 400px at 60% 110%, rgb(72 217 232 / 0.05), transparent 60%);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f7fc;
+  --bg-2: #ffffff;
+  --card: #ffffff;
+  --card-2: #f8f9fd;
+  --border: #e5e9f2;
+  --border-strong: #d3d9e6;
+  --accent: #536fff;
+  --accent-2: #8765e8;
+  --cyan: #0b9db0;
+  --fg: #182033;
+  --fg-2: #68738a;
+  --fg-3: #8e97ab;
+  --ok: #0f9f6e;
+  --warn: #b7791f;
+  --err: #d6455c;
+  --glass: rgb(255 255 255 / 0.72);
+  --shadow: 0 1px 2px rgb(24 32 51 / 0.04), 0 8px 24px -12px rgb(24 32 51 / 0.12);
+  --glow: 0 0 0 1px rgb(83 111 255 / 0.35), 0 8px 24px -10px rgb(83 111 255 / 0.35);
+  --glow-violet: 0 0 0 1px rgb(135 101 232 / 0.35), 0 8px 24px -10px rgb(135 101 232 / 0.3);
+  --grid: rgb(104 115 138 / 0.14);
+  --canvas-wash:
+    radial-gradient(900px 500px at 10% -12%, rgb(83 111 255 / 0.07), transparent 60%),
+    radial-gradient(700px 420px at 95% -5%, rgb(135 101 232 / 0.06), transparent 60%);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-cyan: var(--cyan);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --radius-ctl: 10px;
+  --radius-card: 14px;
+  --radius-hero: 20px;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+/* Focus ring — consistent, accessible */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+@layer components {
+  .af-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow);
+  }
+  .af-glass {
+    background: var(--glass);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+  .af-live {
+    box-shadow: var(--glow);
+    border-color: color-mix(in oklab, var(--accent) 55%, var(--border));
+  }
+  .af-live-violet {
+    box-shadow: var(--glow-violet);
+    border-color: color-mix(in oklab, var(--accent-2) 55%, var(--border));
+  }
+  .af-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+  }
+  .af-gradient-text {
+    background: linear-gradient(100deg, var(--fg) 20%, var(--accent) 60%, var(--accent-2) 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  /* Animated gradient hairline on live surfaces */
+  .af-sweep {
+    position: relative;
+    overflow: hidden;
+  }
+  .af-sweep::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--cyan), var(--accent-2), transparent);
+    background-size: 200% 100%;
+    animation: af-sweep 4s linear infinite;
+    opacity: 0.9;
+  }
+}
+
+/* ── Keyframes ─────────────────────────────────────────────── */
+@keyframes af-sweep {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@keyframes af-breathe {
+  0%, 100% { transform: scale(0.96); opacity: 0.85; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+@keyframes af-spin { to { transform: rotate(360deg); } }
+@keyframes af-spin-rev { to { transform: rotate(-360deg); } }
+@keyframes af-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(260%); }
+}
+@keyframes af-pulse-dot {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 55%, transparent); }
+  100% { box-shadow: 0 0 0 7px transparent; }
+}
+@keyframes af-inflow {
+  0% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(0, 0) scale(0.3); opacity: 0; }
+}
+@keyframes af-dash { to { stroke-dashoffset: -24; } }
+@keyframes af-shimmer {
+  from { background-position: -400px 0; }
+  to { background-position: 400px 0; }
+}
+
+.af-breathe { animation: af-breathe 5s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.af-spin-slow { animation: af-spin 18s linear infinite; transform-origin: center; transform-box: fill-box; }
+.af-spin-med { animation: af-spin 7s linear infinite; transform-origin: center; transform-box: fill-box; }
+.af-spin-rev { animation: af-spin-rev 12s linear infinite; transform-origin: center; transform-box: fill-box; }
+.af-flow { animation: af-dash 1.2s linear infinite; }
+.af-pulse-dot { animation: af-pulse-dot 1.6s ease-out infinite; }
+.af-indeterminate { animation: af-indeterminate 1.6s cubic-bezier(.4,0,.2,1) infinite; }
+.af-particle { animation: af-inflow 2.8s ease-in infinite; transform-box: fill-box; }
+.af-skeleton {
+  background: linear-gradient(90deg, var(--card-2) 0%, var(--border) 50%, var(--card-2) 100%);
+  background-size: 800px 100%;
+  animation: af-shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .af-breathe, .af-spin-slow, .af-spin-med, .af-spin-rev, .af-flow, .af-pulse-dot,
+  .af-particle, .af-skeleton, .af-sweep::before {
+    animation: none !important;
+  }
+  .af-particle { opacity: 0 !important; }
+  .af-indeterminate { animation-duration: 4s; }
+}
+
+/* ── Agent output prose ────────────────────────────────────── */
+.af-prose { font-size: 14px; line-height: 1.65; color: var(--fg); overflow-wrap: anywhere; }
+.af-prose > :first-child { margin-top: 0; }
+.af-prose > :last-child { margin-bottom: 0; }
+.af-prose p { margin: 0.6em 0; }
+.af-prose h1, .af-prose h2, .af-prose h3 { font-weight: 600; letter-spacing: -0.01em; margin: 1.1em 0 0.4em; }
+.af-prose h3 { font-size: 14.5px; }
+.af-prose ul, .af-prose ol { margin: 0.5em 0; padding-left: 1.3em; }
+.af-prose ul { list-style: disc; }
+.af-prose ol { list-style: decimal; }
+.af-prose li { margin: 0.2em 0; }
+.af-prose li::marker { color: var(--fg-3); }
+.af-prose strong { font-weight: 600; }
+.af-prose em { color: var(--fg-2); }
+.af-prose blockquote { border-left: 2px solid var(--accent-2); padding: 0.1em 0 0.1em 0.9em; margin: 0.8em 0; color: var(--fg-2); }
+.af-prose :not(pre) > code { font-family: var(--font-mono); font-size: 0.86em; padding: 0.1em 0.35em; border-radius: 5px; background: var(--card-2); border: 1px solid var(--border); }
+.af-prose th { text-align: left; font-weight: 600; font-size: 12px; color: var(--fg-2); background: var(--card-2); padding: 0.5em 0.8em; }
+.af-prose td { padding: 0.5em 0.8em; border-top: 1px solid var(--border); }
+.af-prose hr { border-color: var(--border); margin: 1em 0; }
+
+/* Syntax highlighting (highlight.js classes) */
+.af-code .hljs-keyword, .af-code .hljs-built_in, .af-code .hljs-selector-tag { color: var(--accent-2); }
+.af-code .hljs-string, .af-code .hljs-attr { color: var(--ok); }
+.af-code .hljs-number, .af-code .hljs-literal { color: var(--warn); }
+.af-code .hljs-comment { color: var(--fg-3); font-style: italic; }
+.af-code .hljs-title, .af-code .hljs-title.function_ { color: var(--accent); }
+.af-code .hljs-params, .af-code .hljs-variable { color: var(--fg); }
+.af-code .hljs-type, .af-code .hljs-class { color: var(--cyan); }
+.af-code .hljs-meta { color: var(--fg-2); }
+
+@keyframes af-blink { 50% { opacity: 0; } }
+.af-stream-caret .af-prose > :last-child::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: -2px;
+  border-radius: 1px;
+  background: var(--cyan);
+  animation: af-blink 1s steps(2) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .af-stream-caret .af-prose > :last-child::after { animation: none; }
+}
+.af-prose th { white-space: nowrap; }
+
+/* Text fields show focus via their own border/glow styles; avoid a double ring. */
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+textarea:focus-visible {
+  outline: none;
+}

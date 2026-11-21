@@ -1,0 +1,323 @@
+# Shared Tool Registry definitions (brief §14, §21.8).
+# Agents never call integrations directly: they request tools granted in their manifest,
+# and the engine enforces side-effect class, approval policy, permission, rate limit and timeout.
+# status: planned → implemented in Phase 4/5. "TBD:" providers are open decisions (see specs).
+schema_version: "1"
+tools:
+  # ── Knowledge & research ──────────────────────────────────────────────────
+  - key: web.search
+    label: Web search
+    description: Query a web search provider and return ranked results with URLs and snippets.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    shared_capability: web_search
+    network: internet
+    timeout_seconds: 20
+    rate_limit_per_minute: 30
+    provider: "TBD: search API (e.g. Brave, Bing, Tavily)"
+  - key: web.fetch
+    label: Fetch page
+    description: Download a public URL and return cleaned text. Output is UNTRUSTED content.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    shared_capability: web_search
+    network: internet
+    timeout_seconds: 30
+    rate_limit_per_minute: 60
+    provider: AgentFirm fetcher (robots-aware, size-capped)
+  - key: knowledge.retrieve
+    label: Knowledge retrieval
+    description: Semantic + keyword retrieval over the organisation's indexed files (pgvector), tenant-scoped.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    shared_capability: research_retrieval_engine
+    timeout_seconds: 15
+    provider: Memory & Knowledge service (pgvector)
+  - key: docs.parse
+    label: Document parser
+    description: Extract text, tables and metadata from PDF, DOCX, TXT, XLSX and CSV files.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    shared_capability: document_processing_engine
+    timeout_seconds: 120
+    provider: Document Processing engine
+  - key: sources.verify
+    label: Source verification
+    description: Re-fetch a cited source and check that the quoted passage still supports the claim.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    shared_capability: research_retrieval_engine
+    network: internet
+    timeout_seconds: 30
+    provider: AgentFirm verifier
+  # ── Shared platform tools ─────────────────────────────────────────────────
+  - key: artifact.write
+    label: Save deliverable
+    description: Store a generated file as an execution artifact in the organisation's R2 prefix.
+    side_effect: internal
+    default_approval: auto
+    required_permission: agents:use
+    idempotent: true
+    provider: Cloudflare R2 (org/{org_id}/…)
+  - key: memory.read
+    label: Read memory
+    description: Read named org/project memories (e.g. brand voice, preferences).
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    shared_capability: memory_service
+    provider: Memory service
+  - key: memory.write
+    label: Update memory
+    description: Propose an update to a named memory; shown to the user before it is saved.
+    side_effect: internal
+    default_approval: auto
+    required_permission: agents:use
+    shared_capability: memory_service
+    provider: Memory service
+  - key: agents.delegate
+    label: Delegate to agent
+    description: Ask the orchestrator to run a subtask on another agent (depth-limited).
+    side_effect: internal
+    default_approval: auto
+    required_permission: tasks:create
+    provider: Agent Orchestrator
+  # ── Marketing ─────────────────────────────────────────────────────────────
+  - key: seo.keywords
+    label: Keyword research
+    description: Search volume, difficulty and related queries for keywords and locales.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    network: internet
+    rate_limit_per_minute: 20
+    provider: "TBD: SEO data provider (e.g. DataForSEO)"
+  - key: content.calendar_write
+    label: Save content calendar
+    description: Create or update the workspace content calendar entries (drafts only).
+    side_effect: internal
+    default_approval: auto
+    required_permission: agents:use
+    provider: AgentFirm content store
+  - key: ads.performance_read
+    label: Read ad performance
+    description: Read campaign metrics from connected ad accounts.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    network: allowlist
+    provider: "TBD: Meta / Google / LinkedIn Ads connectors"
+  - key: social.publish
+    label: Publish to social
+    description: Publish or schedule a post on a connected social account.
+    side_effect: external
+    default_approval: require_approval
+    required_permission: tasks:control
+    network: allowlist
+    idempotent: false
+    provider: "TBD: LinkedIn / X / Meta APIs"
+  - key: ads.budget_change
+    label: Change ad budget
+    description: Create, pause or change budgets of paid campaigns.
+    side_effect: financial
+    default_approval: require_approval
+    required_permission: billing:manage
+    network: allowlist
+    idempotent: false
+    provider: "TBD: ad platform connectors"
+  # ── Engineering ───────────────────────────────────────────────────────────
+  - key: repo.read
+    label: Read repository
+    description: List and read files, history and issues from an authorised repository.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    network: allowlist
+    provider: GitHub App (installation-scoped)
+  - key: repo.write_branch
+    label: Commit to agent branch
+    description: Commit changes to a dedicated agent/* branch. Never writes to protected branches.
+    side_effect: internal
+    default_approval: auto
+    required_permission: tasks:control
+    network: allowlist
+    idempotent: false
+    provider: GitHub App (installation-scoped)
+  - key: repo.open_pull_request
+    label: Open pull request
+    description: Open a pull request from an agent branch for human review.
+    side_effect: external
+    default_approval: require_approval
+    required_permission: tasks:control
+    network: allowlist
+    idempotent: false
+    provider: GitHub App
+  - key: sandbox.exec
+    label: Sandboxed execution
+    description: Run commands/tests in an isolated, network-restricted container with resource limits.
+    side_effect: internal
+    default_approval: auto
+    required_permission: agents:use
+    shared_capability: code_execution
+    network: allowlist
+    timeout_seconds: 900
+    rate_limit_per_minute: 10
+    provider: "TBD: sandbox runtime (gVisor / Firecracker on GPU-less workers)"
+  - key: deps.audit
+    label: Dependency audit
+    description: Check dependencies for known vulnerabilities and licence issues.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    network: allowlist
+    provider: OSV database
+  - key: deploy.preview
+    label: Preview deploy
+    description: Deploy an agent branch to an ephemeral preview environment.
+    side_effect: external
+    default_approval: require_approval
+    required_permission: tasks:control
+    network: allowlist
+    timeout_seconds: 600
+    idempotent: false
+    provider: "TBD: deployment target (Contabo / Coolify / Kamal)"
+  - key: deploy.production
+    label: Production deploy
+    description: Promote a reviewed build to production.
+    side_effect: destructive
+    default_approval: require_approval
+    required_permission: agents:configure
+    network: allowlist
+    timeout_seconds: 1200
+    idempotent: false
+    provider: "TBD: deployment target"
+  # ── Business intelligence ─────────────────────────────────────────────────
+  - key: gn7t.query
+    label: GN7T data query
+    description: Read-only query against the GN7T Database Service through its documented API.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    network: allowlist
+    timeout_seconds: 60
+    provider: GN7T Database Service API (independent service)
+  - key: data.analyze
+    label: Data analysis
+    description: Run pandas/statistics code over provided datasets in the sandbox; returns tables and figures.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    shared_capability: data_analysis
+    timeout_seconds: 600
+    provider: Code execution sandbox (no network)
+  - key: chart.render
+    label: Render chart
+    description: Render a chart specification to SVG/PNG as an artifact.
+    side_effect: internal
+    default_approval: auto
+    required_permission: agents:use
+    provider: AgentFirm chart renderer
+  - key: report.schedule
+    label: Schedule report
+    description: Create or change a recurring report delivered inside AgentFirm.
+    side_effect: internal
+    default_approval: auto
+    required_permission: tasks:create
+    provider: Task Manager scheduler
+  - key: automation.run
+    label: Run automation
+    description: Execute an approved workflow that changes connected external systems.
+    side_effect: external
+    default_approval: require_approval
+    required_permission: tasks:control
+    network: allowlist
+    idempotent: false
+    provider: "TBD: automation connectors"
+  - key: payments.execute
+    label: Execute payment
+    description: Initiate a payment or financial transaction through a connected provider.
+    side_effect: financial
+    default_approval: require_approval
+    required_permission: billing:manage
+    network: allowlist
+    idempotent: false
+    provider: "TBD: payment connector (not planned before Phase 6)"
+  # ── Personal assistant ────────────────────────────────────────────────────
+  - key: calendar.read
+    label: Read calendar
+    description: Read free/busy and events from the user's connected calendar.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    network: allowlist
+    provider: "TBD: Google Calendar / Microsoft Graph"
+  - key: calendar.create_event
+    label: Create calendar event
+    description: Create or change an event, optionally inviting attendees.
+    side_effect: external
+    default_approval: require_approval
+    required_permission: agents:use
+    network: allowlist
+    idempotent: false
+    provider: "TBD: Google Calendar / Microsoft Graph"
+  - key: email.draft
+    label: Draft email
+    description: Create an email draft in AgentFirm (not sent).
+    side_effect: internal
+    default_approval: auto
+    required_permission: agents:use
+    provider: AgentFirm drafts
+  - key: email.send
+    label: Send email
+    description: Send an email from the user's connected mailbox.
+    side_effect: external
+    default_approval: require_approval
+    required_permission: agents:use
+    network: allowlist
+    idempotent: false
+    provider: "TBD: Gmail / Microsoft Graph"
+  - key: jobs.search
+    label: Job search
+    description: Search job listings by role, location and seniority.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    network: internet
+    provider: "TBD: jobs data provider"
+  - key: places.search
+    label: Services & travel search
+    description: Search services, venues, travel options and prices.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    network: internet
+    provider: "TBD: places/travel provider"
+  - key: purchase.execute
+    label: Make a purchase
+    description: Complete a purchase or booking with a saved payment method.
+    side_effect: financial
+    default_approval: require_approval
+    required_permission: billing:manage
+    network: allowlist
+    idempotent: false
+    provider: "TBD: booking/commerce connector (not planned before Phase 6)"
+  # ── Creative ──────────────────────────────────────────────────────────────
+  - key: ideas.board_read
+    label: Read idea board
+    description: Read ideas, scores and history from the workspace idea board.
+    side_effect: none
+    default_approval: auto
+    required_permission: agents:use
+    provider: AgentFirm idea store
+  - key: ideas.board_write
+    label: Save to idea board
+    description: Add, update, score or move ideas on the workspace idea board.
+    side_effect: internal
+    default_approval: auto
+    required_permission: agents:use
+    provider: AgentFirm idea store

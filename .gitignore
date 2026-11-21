@@ -1,0 +1,14 @@
+.env
+**/.venv/
+**/.keys/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+web/node_modules/
+web/.next/
+*.egg-info/
+.env.*
+!.env.example
+deploy/observability/metrics_token
+deploy/.current_tag
+deploy/.previous_tag

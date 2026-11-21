@@ -1,0 +1,71 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.0-pg16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+    defaults: { run: { working-directory: api } }
+    env:
+      AGENTFIRM_TEST_ADMIN_DSN: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13", cache: pip, cache-dependency-path: api/pyproject.toml }
+      - run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check .
+      - name: Static security analysis (bandit, medium+)
+        run: bandit -q -r agentfirm -ll
+      - name: Dependency audit
+        run: pip-audit --progress-spinner off --skip-editable
+      - name: Tests (RLS, tenancy, RBAC, runtime, billing, hardening; also fail if agent docs/schemas are stale)
+        run: pytest -q
+
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm audit --omit=dev --audit-level=high
+      - name: Build (demo mode)
+        run: npx next build
+      - name: Build (live API mode)
+        run: npx next build
+        env: { NEXT_PUBLIC_AGENTFIRM_API: http, NEXT_PUBLIC_AGENTFIRM_AUTH: api }
+
+  deploy-config:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell scripts
+        run: |
+          sudo apt-get install -y shellcheck >/dev/null
+          shellcheck -x deploy/*.sh deploy/vcc/*.sh deploy/backup/*.sh infra/postgres/init.sh
+      - name: Compose file
+        run: IMAGE_TAG=ci docker compose --env-file deploy/ci.env -f deploy/docker-compose.prod.yml config --quiet
+      - name: Caddyfile
+        run: docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" -e APP_DOMAIN=example.com -e ACME_EMAIL=ops@example.com -e ADMIN_ALLOW_CIDRS="0.0.0.0/0" caddy:2.10-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: Prometheus rules
+        run: docker run --rm -v "$PWD/deploy/observability:/o:ro" --entrypoint promtool prom/prometheus:v3.5.0 check rules /o/alerts.yml

@@ -1,0 +1,234 @@
+# Production stack for a single Contabo VPS (Phase 7, ADR 0007).
+# Images are built and pushed by CI (.github/workflows/deploy.yml) and pinned by IMAGE_TAG (git SHA);
+# deploy.sh pulls, backs up, migrates and rolls out, and rolls back if health checks fail.
+# Public ports: 80/443 (Caddy) only. Everything else is on the private network.
+name: agentfirm
+
+x-api-env: &api-env
+  AGENTFIRM_ENV: production
+  AGENTFIRM_DATABASE_URL: postgresql+asyncpg://agentfirm_app:${AGENTFIRM_APP_PASSWORD:?}@postgres:5432/agentfirm
+  AGENTFIRM_REDIS_URL: redis://redis:6379/0
+  AGENTFIRM_JWT_PRIVATE_KEY: ${AGENTFIRM_JWT_PRIVATE_KEY:?}
+  AGENTFIRM_MASTER_KEY: ${AGENTFIRM_MASTER_KEY:?}
+  AGENTFIRM_CORS_ORIGINS: '["https://${APP_DOMAIN:?}"]'
+  AGENTFIRM_GATEWAY_MODE: live
+  AGENTFIRM_WEB_MODE: live
+  AGENTFIRM_CONNECTOR_MODE: live
+  AGENTFIRM_SANDBOX_BACKEND: ${AGENTFIRM_SANDBOX_BACKEND:-disabled}
+  AGENTFIRM_SEARCH_PROVIDER: ${AGENTFIRM_SEARCH_PROVIDER:-brave}
+  AGENTFIRM_BRAVE_API_KEY: ${AGENTFIRM_BRAVE_API_KEY:-}
+  AGENTFIRM_ARTIFACT_STORE: r2
+  AGENTFIRM_R2_ENDPOINT: ${AGENTFIRM_R2_ENDPOINT:?}
+  AGENTFIRM_R2_BUCKET: ${AGENTFIRM_R2_BUCKET:?}
+  AGENTFIRM_R2_ACCESS_KEY_ID: ${AGENTFIRM_R2_ACCESS_KEY_ID:?}
+  AGENTFIRM_R2_SECRET_ACCESS_KEY: ${AGENTFIRM_R2_SECRET_ACCESS_KEY:?}
+  AGENTFIRM_PADDLE_MODE: ${AGENTFIRM_PADDLE_MODE:-disabled}
+  AGENTFIRM_PADDLE_ENVIRONMENT: ${AGENTFIRM_PADDLE_ENVIRONMENT:-sandbox}
+  AGENTFIRM_PADDLE_API_KEY: ${AGENTFIRM_PADDLE_API_KEY:-}
+  AGENTFIRM_PADDLE_WEBHOOK_SECRET: ${AGENTFIRM_PADDLE_WEBHOOK_SECRET:-}
+  AGENTFIRM_PADDLE_CHECKOUT_URL: https://${APP_DOMAIN}/billing/checkout
+  AGENTFIRM_LOG_FORMAT: json
+  AGENTFIRM_METRICS_TOKEN: ${AGENTFIRM_METRICS_TOKEN:?}
+  AGENTFIRM_DB_POOL_SIZE: "20"
+  AGENTFIRM_DB_MAX_OVERFLOW: "5"
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "20m", max-file: "5" }
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?}
+      ACME_EMAIL: ${ACME_EMAIL:?}
+      ADMIN_ALLOW_CIDRS: ${ADMIN_ALLOW_CIDRS:-0.0.0.0/0 ::/0}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web, api]
+    networks: [edge]
+    logging: *logging
+
+  web:
+    image: ${REGISTRY:?}/agentfirm-web:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      AGENTFIRM_API_URL: http://api:8000
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+    networks: [edge, app]
+    logging: *logging
+
+  api:
+    image: ${REGISTRY}/agentfirm-api:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      <<: *api-env
+      FORWARDED_ALLOW_IPS: "*"  # only reachable from Caddy/web on private networks (no published port)
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+    networks: [edge, app]
+    logging: *logging
+
+  worker:
+    image: ${REGISTRY}/agentfirm-api:${IMAGE_TAG}
+    restart: unless-stopped
+    command: ["python", "-m", "agentfirm.worker"]
+    environment:
+      <<: *api-env
+      AGENTFIRM_WORKER_METRICS_PORT: "9101"
+    stop_grace_period: 60s  # finish the current step; leases let another worker resume anything cut off
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [app]
+    logging: *logging
+
+  migrate:
+    image: ${REGISTRY}/agentfirm-api:${IMAGE_TAG}
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      AGENTFIRM_ENV: production
+      AGENTFIRM_MIGRATIONS_DATABASE_URL: postgresql+asyncpg://agentfirm_owner:${AGENTFIRM_OWNER_PASSWORD:?}@postgres:5432/agentfirm
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [app]
+    profiles: [ops]  # run explicitly by deploy.sh, after a backup
+
+  postgres:
+    image: pgvector/pgvector:0.8.0-pg16
+    restart: unless-stopped
+    shm_size: 256mb
+    command:
+      - postgres
+      - -c
+      - max_connections=150
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=3GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - log_min_duration_statement=500
+      - -c
+      - log_lock_waits=on
+      - -c
+      - ssl=off  # private network only
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      AGENTFIRM_OWNER_PASSWORD: ${AGENTFIRM_OWNER_PASSWORD}
+      AGENTFIRM_APP_PASSWORD: ${AGENTFIRM_APP_PASSWORD}
+      AGENTFIRM_MONITOR_PASSWORD: ${AGENTFIRM_MONITOR_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../infra/postgres/init.sh:/docker-entrypoint-initdb.d/10-agentfirm.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agentfirm"]
+      interval: 5s
+      retries: 20
+    networks: [app]
+    logging: *logging
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    networks: [app]
+    logging: *logging
+
+  backup:
+    image: ${REGISTRY}/agentfirm-backup:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://agentfirm_owner:${AGENTFIRM_OWNER_PASSWORD}@postgres:5432/agentfirm
+      AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?}
+      BACKUP_TARGET: r2
+      BACKUP_INTERVAL_SECONDS: "21600"  # every 6 hours (RPO 6 h)
+      BACKUP_PING_URL: ${BACKUP_PING_URL:-}
+      R2_BUCKET: ${BACKUP_R2_BUCKET:?}
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ENDPOINT: ${AGENTFIRM_R2_ENDPOINT}
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${BACKUP_R2_ACCESS_KEY_ID:?}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${BACKUP_R2_SECRET_ACCESS_KEY:?}
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [app]
+    logging: *logging
+
+  # ── observability (private; Grafana reached through an SSH tunnel) ──────────
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=30d"]
+    environment:
+      METRICS_TOKEN: ${AGENTFIRM_METRICS_TOKEN}
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./observability/metrics_token:/etc/prometheus/metrics_token:ro
+      - prometheus_data:/prometheus
+    networks: [app]
+    logging: *logging
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    restart: unless-stopped
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks: [app]
+    logging: *logging
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    restart: unless-stopped
+    command: ["--path.rootfs=/host"]
+    volumes: ["/:/host:ro,rslave"]
+    pid: host
+    networks: [app]
+    logging: *logging
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.17.1
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://agentfirm_monitor:${AGENTFIRM_MONITOR_PASSWORD:?}@postgres:5432/agentfirm?sslmode=disable
+    networks: [app]
+    logging: *logging
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    ports: ["127.0.0.1:3001:3000"]  # localhost only: ssh -L 3001:localhost:3001 deploy@server
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks: [app]
+    logging: *logging
+
+networks:
+  edge: {}
+  # Not "internal": the API and worker need egress (model providers, web, R2, Paddle). Nothing on
+  # it publishes a port except Grafana on localhost. Egress filtering via a proxy is R-15/R-21.
+  app: {}
+
+volumes:
+  pgdata: {}
+  caddy_data: {}
+  caddy_config: {}
+  prometheus_data: {}
+  grafana_data: {}

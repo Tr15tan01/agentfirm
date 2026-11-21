@@ -1,0 +1,190 @@
+schema_version: "1"
+key: creative
+name: Creative & Brainstorming
+version: 1.4.2
+status: draft
+changelog:
+  - "1.4.2 — Phase 4b: more intent examples for clearer routing."
+  - "1.4.1 — Phase 4a: first executable version; evaluation saves ranked proposals as an artifact; step tool lists are enforced at runtime."
+  - "1.4.0 — Full specification manifest (Phase 3.5): nine thinking approaches, idea board, handoffs, shared brainstorming engine."
+  - "1.3.0 — Initial seeded definition."
+description: Divergent ideation, SCAMPER, Six Hats and critical evaluation.
+mission: Help users think creatively — generate diverse ideas, challenge assumptions, evaluate options and hand the promising ones to other agents.
+
+responsibilities:
+  - Pick a thinking approach that fits the objective and constraints (or the user's choice).
+  - Generate diverse, non-generic ideas and explore alternative perspectives.
+  - Challenge assumptions and evaluate ideas against explicit criteria.
+  - Group, rank and develop promising concepts into actionable proposals.
+  - Save ideas to the idea board and hand selected ideas to other agents.
+scope_in:
+  - Idea generation, business brainstorming, product and feature ideation.
+  - Naming and branding concepts; creative writing and marketing concepts.
+  - Problem-solving frameworks, scenario planning, premortems, structured debate.
+  - Critical evaluation and ranking of options.
+scope_out:
+  - Presenting ideas as validated facts or market data (Research/BI validate).
+  - Trademark/legal clearance of names (flag for human review).
+  - Publishing or executing ideas directly (handoff to the owning agent).
+limitations:
+  - Scores are judgement, not measurement; they are labelled as such.
+  - Name availability (domains, trademarks) is not checked unless handed to Research.
+
+capabilities:
+  - idea_generation
+  - business_brainstorming
+  - product_innovation
+  - feature_ideation
+  - naming_and_branding
+  - creative_concepts
+  - problem_solving
+  - strategic_thinking
+  - scenario_planning
+  - critical_evaluation
+  - alternative_solutions
+
+intents:
+  - key: ideate
+    description: Generate ideas for an objective (divergent by default).
+    workflow: ideation
+    examples:
+      - Brainstorm 20 names for our tutoring product.
+      - Give me feature ideas for the mobile app.
+      - Generate fresh ideas for improving our checkout flow.
+      - Business ideas for the home-fitness market.
+    counter_examples:
+      - Write the final LinkedIn post (marketing).
+  - key: evaluate
+    description: Critically evaluate, compare or rank existing ideas.
+    workflow: evaluation
+    examples:
+      - Rank these three positioning options.
+      - What's wrong with this plan? Be harsh.
+  - key: problem_solving
+    description: Structured problem-solving with a named framework.
+    workflow: framework_session
+    examples:
+      - Run a premortem on our launch plan.
+      - Use Six Thinking Hats on the pricing decision.
+      - Apply SCAMPER to our onboarding flow.
+  - key: develop_idea
+    description: Develop a selected idea into a concept or brief, optionally hand off.
+    workflow: develop
+    examples:
+      - Develop "Exam Sprint" into a product concept.
+      - Turn the top idea into a brief for the marketing agent.
+
+inputs:
+  - { name: objective, type: text, required: true, description: "What we are thinking about." }
+  - { name: approach, type: enum, enum: [divergent, convergent, first_principles, lateral, scamper, six_hats, analogical, debate, premortem], description: "Thinking approach (auto if omitted)." }
+  - { name: constraints, type: text, description: "Must-haves, budget, audience, tone." }
+  - { name: count, type: number, description: "Number of ideas to generate (default 12)." }
+  - { name: criteria, type: list, description: "Evaluation criteria (default impact, feasibility, novelty)." }
+
+workflows:
+  - key: ideation
+    title: Ideation session
+    description: Frame → pick approach → diverge → de-duplicate → challenge → cluster → score → save.
+    steps:
+      - { key: frame, title: "Frame objective and constraints", kind: classify, capability: reasoning, weight: 0.5, on_failure: ask_user }
+      - { key: context, title: "Read existing ideas to avoid repeats", kind: retrieve, tools: [ideas.board_read, memory.read], weight: 0.5 }
+      - { key: diverge, title: "Generate diverse ideas with the chosen approach", kind: model, capability: creative, weight: 3 }
+      - { key: dedupe, title: "Remove duplicates and generic suggestions", kind: verify, capability: classify, weight: 0.5 }
+      - { key: challenge, title: "Challenge assumptions", kind: model, capability: reasoning, weight: 1 }
+      - { key: score, title: "Cluster and score against criteria", kind: model, capability: reasoning, weight: 1 }
+      - { key: save, title: "Save to idea board", kind: tool, tools: [ideas.board_write, artifact.write], weight: 0.5 }
+  - key: evaluation
+    title: Critical evaluation
+    description: Criteria → per-idea analysis → comparison → recommendation with risks.
+    steps:
+      - { key: criteria, title: "Agree criteria and weights", kind: model, capability: reasoning, weight: 0.5 }
+      - { key: analyse, title: "Analyse each option", kind: model, capability: reasoning, weight: 2 }
+      - { key: compare, title: "Compare and rank", kind: synthesize, capability: reasoning, weight: 1 }
+      - { key: save, title: "Save the ranked proposals", kind: tool, tools: [artifact.write], weight: 0.5, on_failure: skip }
+  - key: framework_session
+    title: Framework session
+    description: Run SCAMPER, Six Hats, premortem, debate, analogies or first principles step by step.
+    steps:
+      - { key: setup, title: "Explain the framework and frame the problem", kind: plan, capability: reasoning, weight: 0.5 }
+      - { key: perspectives, title: "Work through each lens/hat/step", kind: model, capability: creative, weight: 3 }
+      - { key: synthesis, title: "Synthesis and actions", kind: synthesize, capability: reasoning, weight: 1 }
+      - { key: save, title: "Save outcomes", kind: tool, tools: [ideas.board_write, artifact.write], weight: 0.5 }
+  - key: develop
+    title: Develop and hand off
+    description: Expand an idea into a concept/brief; optionally hand off to the owning agent.
+    steps:
+      - { key: read, title: "Read the selected idea and history", kind: retrieve, tools: [ideas.board_read], weight: 0.5 }
+      - { key: develop, title: "Develop concept", kind: model, capability: creative, weight: 2 }
+      - { key: brief, title: "Write brief", kind: synthesize, capability: reasoning, tools: [artifact.write], weight: 1 }
+      - { key: handoff, title: "Hand off to another agent (optional)", kind: delegate, tools: [agents.delegate], weight: 1, on_failure: skip }
+
+tools:
+  - { tool: ideas.board_read, max_calls_per_run: 10 }
+  - { tool: ideas.board_write, max_calls_per_run: 60 }
+  - { tool: memory.read, max_calls_per_run: 5 }
+  - { tool: artifact.write, max_calls_per_run: 5 }
+  - { tool: agents.delegate, max_calls_per_run: 4 }
+
+knowledge:
+  sources: [idea_board, project_knowledge, conversation_history, brand_memory, agent_results]
+  scope: project
+  citations_required: false
+  pii: avoid
+  untrusted_sources: [agent_results]
+
+memory:
+  conversation: true
+  user_preferences: true
+  project: true
+  agent_memory: [rejected_ideas, preferred_approaches]
+  retention_days: 365
+
+models:
+  capabilities: [creative, reasoning, classify]
+  default_capability: creative
+  temperature: { creative: 0.95, reasoning: 0.3, classify: 0.0 }
+  max_output_tokens: 6000
+  preferences:
+    - High-temperature creative model for divergence; low-temperature reasoning model for evaluation.
+
+deliverables:
+  - { key: idea_collection, title: "Idea collection", format: ideas, description: "Ideas with approach, lens, tags and judgement scores." }
+  - { key: ranked_proposals, title: "Ranked proposals", format: markdown, description: "Shortlist with criteria scores and risks." }
+  - { key: concept, title: "Product/business concept", format: markdown, description: "Problem, audience, solution, differentiation, risks." }
+  - { key: creative_brief, title: "Creative brief", format: docx, description: "Brief ready for Marketing or Engineering." }
+  - { key: framework_output, title: "Framework output", format: markdown, description: "Results of SCAMPER, Six Hats, premortem, debate or scenarios." }
+
+collaboration:
+  can_delegate_to: [research, marketing, bi, engineer]
+  accepts_from: [user, orchestrator, research, marketing, engineer, bi, assistant]
+  shared_capabilities: [memory_service, planning_engine]
+  provides: [brainstorming_engine]
+
+permissions: [agents:use, tasks:create]
+approvals: []
+
+recovery:
+  - { error: model_unavailable, strategy: fallback_model, max_attempts: 2 }
+  - { error: model_error, strategy: retry_backoff, max_attempts: 2 }
+  - { error: tool_error, strategy: retry_backoff, max_attempts: 2 }
+  - { error: budget_exceeded, strategy: partial_result, max_attempts: 0 }
+  - { error: missing_context, strategy: ask_user, max_attempts: 1 }
+
+limits:
+  max_steps: 20
+  max_runtime_seconds: 900
+  max_credits: 120
+  max_tool_calls: 80
+  max_parallel_subtasks: 4
+  max_delegation_depth: 1
+
+quality:
+  - { metric: idea_diversity, threshold: 0.7, direction: min, description: "Embedding-distance diversity across generated ideas." }
+  - { metric: generic_idea_rate, threshold: 0.15, direction: max, description: "Ideas judged generic/repetitive (rubric)." }
+  - { metric: speculation_labelling, threshold: 1.0, direction: min, description: "Factual-sounding statements in ideas labelled speculative or cited." }
+  - { metric: repeat_rate, threshold: 0.05, direction: max, description: "Ideas duplicating existing board items." }
+
+rules:
+  - label_speculation
+  - avoid_generic_repetition
+  - check_board_before_generating

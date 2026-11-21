@@ -1,0 +1,56 @@
+# Caddy: automatic HTTPS (Let's Encrypt), HTTP/3, security headers, body limits, routing.
+{
+	email {$ACME_EMAIL}
+	servers {
+		# Whose X-Forwarded-For to believe. If you turn on the Cloudflare proxy (orange cloud),
+		# replace with Cloudflare's published ranges, or the admin allowlist and rate limits see
+		# Cloudflare's address instead of the visitor's.
+		trusted_proxies static private_ranges
+	}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 26MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+		-X-Powered-By
+	}
+
+	# Never public.
+	@private path /metrics /metrics/* /openapi.json /docs*
+	respond @private 404
+
+	# Paddle webhooks go straight to the API (signature-verified there).
+	handle /v1/billing/paddle/webhook {
+		reverse_proxy api:8000 {
+			header_up X-Request-ID {http.request.uuid}
+		}
+	}
+	handle /healthz {
+		reverse_proxy api:8000
+	}
+
+	# Platform admin pages: optionally restricted to office/VPN ranges (ADMIN_ALLOW_CIDRS).
+	# The API enforces super-admin on every call regardless.
+	@admin_blocked {
+		path /admin /admin/* /api/v1/admin/*
+		not client_ip {$ADMIN_ALLOW_CIDRS}
+	}
+	respond @admin_blocked 404
+
+	# Everything else: the Next.js app (pages + BFF at /api, which calls the API privately).
+	handle {
+		reverse_proxy web:3000 {
+			header_up X-Request-ID {http.request.uuid}
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

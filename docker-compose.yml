@@ -1,0 +1,99 @@
+# Local / single-VPS stack. Secrets come from .env (see .env.example) — never commit real values.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      AGENTFIRM_OWNER_PASSWORD: ${AGENTFIRM_OWNER_PASSWORD:?set AGENTFIRM_OWNER_PASSWORD}
+      AGENTFIRM_APP_PASSWORD: ${AGENTFIRM_APP_PASSWORD:?set AGENTFIRM_APP_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/10-agentfirm.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+  migrate:
+    build: ./api
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      AGENTFIRM_MIGRATIONS_DATABASE_URL: postgresql+asyncpg://agentfirm_owner:${AGENTFIRM_OWNER_PASSWORD}@postgres:5432/agentfirm
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    build: ./api
+    environment:
+      AGENTFIRM_ENV: ${AGENTFIRM_ENV:-production}
+      AGENTFIRM_DATABASE_URL: postgresql+asyncpg://agentfirm_app:${AGENTFIRM_APP_PASSWORD}@postgres:5432/agentfirm
+      AGENTFIRM_REDIS_URL: redis://redis:6379/0
+      AGENTFIRM_JWT_PRIVATE_KEY: ${AGENTFIRM_JWT_PRIVATE_KEY:?set AGENTFIRM_JWT_PRIVATE_KEY (Ed25519 PEM)}
+      AGENTFIRM_MASTER_KEY: ${AGENTFIRM_MASTER_KEY:?set AGENTFIRM_MASTER_KEY (base64 32 bytes)}
+      AGENTFIRM_CORS_ORIGINS: '["${PUBLIC_WEB_ORIGIN:-http://localhost:3000}"]'
+      AGENTFIRM_GATEWAY_MODE: ${AGENTFIRM_GATEWAY_MODE:-live}
+      AGENTFIRM_WEB_MODE: ${AGENTFIRM_WEB_MODE:-live}
+      AGENTFIRM_ARTIFACT_STORE: ${AGENTFIRM_ARTIFACT_STORE:-r2}
+      AGENTFIRM_CONNECTOR_MODE: ${AGENTFIRM_CONNECTOR_MODE:-live}
+      AGENTFIRM_SANDBOX_BACKEND: ${AGENTFIRM_SANDBOX_BACKEND:-disabled}
+      AGENTFIRM_PADDLE_MODE: ${AGENTFIRM_PADDLE_MODE:-disabled}
+      AGENTFIRM_PADDLE_ENVIRONMENT: ${AGENTFIRM_PADDLE_ENVIRONMENT:-sandbox}
+      AGENTFIRM_PADDLE_API_KEY: ${AGENTFIRM_PADDLE_API_KEY:-}
+      AGENTFIRM_PADDLE_WEBHOOK_SECRET: ${AGENTFIRM_PADDLE_WEBHOOK_SECRET:-}
+      AGENTFIRM_PADDLE_CHECKOUT_URL: ${AGENTFIRM_PADDLE_CHECKOUT_URL:-}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_started }
+    # Not published: only the web BFF talks to the API.
+    expose: ["8000"]
+
+  worker:
+    build: ./api
+    command: ["python", "-m", "agentfirm.worker"]
+    environment:
+      AGENTFIRM_ENV: ${AGENTFIRM_ENV:-production}
+      AGENTFIRM_DATABASE_URL: postgresql+asyncpg://agentfirm_app:${AGENTFIRM_APP_PASSWORD}@postgres:5432/agentfirm
+      AGENTFIRM_REDIS_URL: redis://redis:6379/0
+      AGENTFIRM_JWT_PRIVATE_KEY: ${AGENTFIRM_JWT_PRIVATE_KEY:?set AGENTFIRM_JWT_PRIVATE_KEY (Ed25519 PEM)}
+      AGENTFIRM_MASTER_KEY: ${AGENTFIRM_MASTER_KEY:?set AGENTFIRM_MASTER_KEY (base64 32 bytes)}
+      AGENTFIRM_GATEWAY_MODE: ${AGENTFIRM_GATEWAY_MODE:-live}
+      AGENTFIRM_WEB_MODE: ${AGENTFIRM_WEB_MODE:-live}
+      AGENTFIRM_BRAVE_API_KEY: ${AGENTFIRM_BRAVE_API_KEY:-}
+      AGENTFIRM_ARTIFACT_STORE: ${AGENTFIRM_ARTIFACT_STORE:-r2}
+      AGENTFIRM_CONNECTOR_MODE: ${AGENTFIRM_CONNECTOR_MODE:-live}
+      AGENTFIRM_SANDBOX_BACKEND: ${AGENTFIRM_SANDBOX_BACKEND:-disabled}
+      AGENTFIRM_PADDLE_MODE: ${AGENTFIRM_PADDLE_MODE:-disabled}
+      AGENTFIRM_PADDLE_ENVIRONMENT: ${AGENTFIRM_PADDLE_ENVIRONMENT:-sandbox}
+      AGENTFIRM_PADDLE_API_KEY: ${AGENTFIRM_PADDLE_API_KEY:-}
+      AGENTFIRM_PADDLE_WEBHOOK_SECRET: ${AGENTFIRM_PADDLE_WEBHOOK_SECRET:-}
+      AGENTFIRM_PADDLE_CHECKOUT_URL: ${AGENTFIRM_PADDLE_CHECKOUT_URL:-}
+      AGENTFIRM_R2_ENDPOINT: ${AGENTFIRM_R2_ENDPOINT:-}
+      AGENTFIRM_R2_ACCESS_KEY_ID: ${AGENTFIRM_R2_ACCESS_KEY_ID:-}
+      AGENTFIRM_R2_SECRET_ACCESS_KEY: ${AGENTFIRM_R2_SECRET_ACCESS_KEY:-}
+      AGENTFIRM_R2_BUCKET: ${AGENTFIRM_R2_BUCKET:-}
+      AGENTFIRM_WORKER_CONCURRENCY: ${AGENTFIRM_WORKER_CONCURRENCY:-4}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_started }
+    # Scale horizontally (`docker compose up --scale worker=2`): leases prevent double execution.
+    stop_grace_period: 30s
+
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_AGENTFIRM_AUTH: api
+        NEXT_PUBLIC_AGENTFIRM_API: ${NEXT_PUBLIC_AGENTFIRM_API:-http}
+        NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: ${NEXT_PUBLIC_PADDLE_CLIENT_TOKEN:-}
+        NEXT_PUBLIC_PADDLE_ENV: ${NEXT_PUBLIC_PADDLE_ENV:-sandbox}
+    environment:
+      AGENTFIRM_API_URL: http://api:8000
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+volumes:
+  pgdata:

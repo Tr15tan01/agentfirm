@@ -1,0 +1,64 @@
+[project]
+name = "agentfirm-api"
+version = "0.3.0"
+description = "AgentFirm backend — modular monolith (FastAPI, SQLAlchemy 2, PostgreSQL)"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi>=0.163",
+  "uvicorn[standard]>=0.32",
+  "sqlalchemy[asyncio]>=2.1",
+  "asyncpg>=0.32",
+  "alembic>=1.20",
+  "pydantic>=2.14",
+  "pydantic-settings>=2.16",
+  "email-validator>=2.2",
+  "pyjwt[crypto]>=2.15",
+  "argon2-cffi>=25.1",
+  "cryptography>=45",
+  "redis>=6",
+  "pyyaml>=6",
+  "python-multipart>=0.0.20",
+  "langgraph>=1.2",
+  "langgraph-checkpoint-postgres>=3.2",
+  "psycopg[binary]>=3.3",
+  "psycopg-pool>=3.3",
+  "pypdf>=6",
+  "pandas>=2.3",
+  "python-dateutil>=2.9",
+  "prometheus-client>=0.21",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=9", "pytest-asyncio>=1.5", "httpx>=0.28", "respx>=0.22", "bandit>=1.8", "pip-audit>=2.7", "locust>=2.32"]
+r2 = ["boto3>=1.35"]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["agentfirm*"]
+
+# Agent manifests, the tool catalog and eval suites are read at run time: ship them in the wheel,
+# so a plain `pip install .` (VPS Control Center, CI) works without the source tree on sys.path.
+[tool.setuptools.package-data]
+agentfirm = ["agents/*.yaml", "agents/manifests/*.yaml", "agents/evals/*.yaml", "evals/*.yaml", "evals/*.md"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC", "RUF"]
+ignore = ["S101", "S608", "RUF012", "B008", "E501", "S105", "S106"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B"]
+"alembic/*" = ["S"]

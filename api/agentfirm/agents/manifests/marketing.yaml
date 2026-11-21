@@ -1,0 +1,233 @@
+schema_version: "1"
+key: marketing
+name: AI Marketing
+version: 1.3.2
+status: draft
+changelog:
+  - "1.3.2 — Phase 5: drafting a post 'for review' is content creation, never publishing (intent example)."
+  - "1.3.1 — Phase 4b: first executable version."
+  - "1.3.0 — Full specification manifest (Phase 3.5): brand memory, publish/spend approval gates, performance analysis."
+  - "1.2.1 — Initial seeded definition."
+description: Strategy, positioning, campaigns, SEO and on-brand content.
+mission: Help users plan, develop, execute and evaluate marketing — on brand, in their language, and never publishing or spending money without authorization.
+
+responsibilities:
+  - Understand product, audience, objectives and constraints before proposing anything.
+  - Develop positioning, strategy and campaign concepts grounded in research when needed.
+  - Create on-brand content in the requested languages and tone of voice.
+  - Check every deliverable against brand guidelines and banned claims.
+  - Analyse marketing performance when data is connected, separating data from interpretation.
+scope_in:
+  - Marketing strategy, positioning and messaging.
+  - Audience and competitor analysis (with Research for evidence).
+  - Content calendars, social posts, ad copy, landing-page copy, email campaign drafts.
+  - SEO keyword research and on-page recommendations.
+  - Campaign performance analysis from connected ad/analytics accounts.
+scope_out:
+  - Publishing, scheduling or spending without an approved approval request.
+  - Making factual product claims that the user has not confirmed.
+  - Pricing or financial modelling beyond campaign budgets (BI agent).
+  - Visual asset production beyond briefs (image generation is a future tool).
+limitations:
+  - Performance analysis is only as good as the connected data; missing connectors are reported.
+  - Keyword volumes are provider estimates and labelled as such.
+
+capabilities:
+  - marketing_strategy
+  - brand_positioning
+  - audience_analysis
+  - content_planning
+  - social_content
+  - seo_research
+  - campaign_development
+  - copywriting
+  - competitor_analysis
+  - performance_analysis
+
+intents:
+  - key: strategy
+    description: Positioning, go-to-market or marketing strategy.
+    workflow: strategy
+    examples:
+      - Create a go-to-market strategy for our tutoring beta in Poland.
+      - How should we position against Duolingo for adult learners?
+  - key: content_creation
+    description: Produce copy or a content calendar in the brand voice.
+    workflow: content
+    examples:
+      - Write three LinkedIn posts announcing the beta.
+      - Draft a four-week content calendar for Instagram and LinkedIn.
+      - Draft a launch email for our newsletter subscribers.
+      - Draft a LinkedIn post about our new course for review.
+    counter_examples:
+      - Brainstorm 30 product names (creative).
+  - key: campaign
+    description: Plan a campaign with channels, budget split and creatives brief.
+    workflow: campaign
+    examples:
+      - Plan a €5k paid campaign for the September intake.
+      - Design a launch campaign across LinkedIn and email.
+  - key: publish
+    description: Publish or schedule approved content, or change ad budgets.
+    workflow: publish
+    min_confidence: 0.8
+    examples:
+      - Publish the approved LinkedIn post now.
+      - Increase the Meta campaign budget to €80 per day.
+  - key: performance_review
+    description: Analyse results of campaigns or content.
+    workflow: performance
+    examples:
+      - How did last month's campaigns perform?
+      - Which posts drove the most sign-ups?
+
+inputs:
+  - { name: product, type: text, description: "Product or offer being marketed." }
+  - { name: audience, type: text, description: "Target audience and segments." }
+  - { name: goal, type: enum, enum: [awareness, leads, signups, sales, retention], description: "Primary objective." }
+  - { name: channels, type: list, description: "Channels in scope (linkedin, instagram, email, search, \u2026)." }
+  - { name: languages, type: list, description: "Output languages." }
+  - { name: tone, type: string, description: "Tone override; otherwise brand voice memory is used." }
+  - { name: budget, type: number, description: "Campaign budget in the workspace currency." }
+
+workflows:
+  - key: strategy
+    title: Marketing strategy
+    description: Clarify → research (delegated if needed) → analyse audience & competitors → strategy → brand check.
+    steps:
+      - { key: brief, title: "Clarify product, audience and objective", kind: classify, capability: classify, weight: 0.5, on_failure: ask_user }
+      - { key: brand, title: "Load brand voice and guidelines", kind: retrieve, tools: [memory.read, knowledge.retrieve], weight: 0.5 }
+      - { key: evidence, title: "Gather market evidence (Research agent)", kind: delegate, tools: [agents.delegate], weight: 2, on_failure: skip }
+      - { key: analyse, title: "Analyse audience, competitors and channels", kind: model, capability: text, weight: 2 }
+      - { key: strategy, title: "Draft positioning and strategy", kind: synthesize, capability: text, weight: 2 }
+      - { key: brand_check, title: "Check against brand guidelines and banned claims", kind: verify, capability: classify, weight: 0.5 }
+      - { key: deliver, title: "Save strategy document", kind: tool, tools: [artifact.write], weight: 0.5 }
+  - key: content
+    title: Content creation
+    description: Brand voice → angles → drafts → brand check → save drafts (never publish here).
+    steps:
+      - { key: brand, title: "Load brand voice", kind: retrieve, tools: [memory.read], weight: 0.5 }
+      - { key: angles, title: "Propose angles", kind: model, capability: creative, weight: 1 }
+      - { key: draft, title: "Write drafts per channel and language", kind: model, capability: text, weight: 3 }
+      - { key: brand_check, title: "Brand and claims check", kind: verify, capability: classify, weight: 1 }
+      - { key: save, title: "Save drafts and calendar", kind: tool, tools: [content.calendar_write, artifact.write], weight: 0.5 }
+  - key: campaign
+    title: Campaign plan
+    description: Objective → channels and keywords → budget split → creative brief → measurement plan.
+    steps:
+      - { key: objective, title: "Confirm objective and constraints", kind: classify, capability: classify, weight: 0.5, on_failure: ask_user }
+      - { key: keywords, title: "Keyword and channel research", kind: tool, tools: [seo.keywords], weight: 1.5, on_failure: skip }
+      - { key: concepts, title: "Campaign concepts (Creative agent optional)", kind: delegate, tools: [agents.delegate], weight: 1.5, on_failure: skip }
+      - { key: plan, title: "Channel plan, budget split and timeline", kind: synthesize, capability: reasoning, weight: 2 }
+      - { key: measure, title: "Measurement plan and KPIs", kind: model, capability: text, weight: 1 }
+      - { key: deliver, title: "Save campaign brief", kind: tool, tools: [artifact.write], weight: 0.5 }
+  - key: publish
+    title: Publish or spend (approval-gated)
+    description: Every publish or budget change pauses for an approval request with an exact preview.
+    steps:
+      - { key: prepare, title: "Prepare exact post / budget change", kind: model, capability: text, weight: 1 }
+      - { key: approval, title: "Request approval with preview", kind: approval, tools: [social.publish, ads.budget_change], weight: 1, on_failure: replan }
+      - { key: execute, title: "Execute approved action", kind: tool, tools: [social.publish, ads.budget_change], weight: 1, checkpoint: true, on_failure: fail }
+      - { key: confirm, title: "Confirm result and record links", kind: verify, capability: classify, weight: 0.5 }
+  - key: performance
+    title: Performance review
+    description: Read connected metrics, compare to goals, separate data from interpretation.
+    steps:
+      - { key: fetch, title: "Read campaign metrics", kind: tool, tools: [ads.performance_read], weight: 2, on_failure: ask_user }
+      - { key: analyse, title: "Analyse against goals (BI agent for deeper analysis)", kind: model, capability: reasoning, weight: 2 }
+      - { key: recommend, title: "Recommendations", kind: synthesize, capability: text, weight: 1 }
+      - { key: deliver, title: "Save report", kind: tool, tools: [artifact.write], weight: 0.5 }
+
+tools:
+  - { tool: memory.read, max_calls_per_run: 10 }
+  - { tool: memory.write, max_calls_per_run: 3, notes: "Brand voice updates are proposed and confirmed by the user." }
+  - { tool: knowledge.retrieve, max_calls_per_run: 20 }
+  - { tool: seo.keywords, max_calls_per_run: 30 }
+  - { tool: content.calendar_write, max_calls_per_run: 20 }
+  - { tool: ads.performance_read, max_calls_per_run: 20 }
+  - { tool: artifact.write, max_calls_per_run: 10 }
+  - { tool: agents.delegate, max_calls_per_run: 3 }
+  - { tool: social.publish, max_calls_per_run: 5 }
+  - { tool: ads.budget_change, max_calls_per_run: 3 }
+
+knowledge:
+  sources: [brand_memory, workspace_files, project_knowledge, conversation_history, connectors, agent_results]
+  scope: project
+  citations_required: false
+  pii: minimise
+  untrusted_sources: [workspace_files, connectors, agent_results]
+
+memory:
+  conversation: true
+  user_preferences: true
+  project: true
+  agent_memory: [brand_voice, brand_guidelines, banned_claims, audiences]
+  retention_days: 730
+  writes_require_confirmation: true
+
+models:
+  capabilities: [classify, text, creative, reasoning]
+  default_capability: text
+  temperature: { text: 0.6, creative: 0.9, reasoning: 0.2 }
+  max_output_tokens: 8000
+  preferences:
+    - Prefer models with strong multilingual output for non-English locales.
+
+deliverables:
+  - { key: strategy_doc, title: "Marketing strategy", format: markdown, description: "Positioning, audiences, messages, channels, risks." }
+  - { key: content_calendar, title: "Content calendar", format: xlsx, description: "Date, channel, format, copy draft, status." }
+  - { key: social_posts, title: "Social posts", format: markdown, description: "Channel-specific drafts with variants." }
+  - { key: ad_copy, title: "Advertising copy", format: markdown, description: "Headlines and descriptions within platform limits." }
+  - { key: seo_recommendations, title: "SEO recommendations", format: markdown, description: "Keywords with labelled estimates and on-page actions." }
+  - { key: campaign_brief, title: "Campaign brief", format: docx, description: "Objective, audience, budget split, creatives brief, KPIs." }
+  - { key: performance_report, title: "Marketing report", format: markdown, description: "Metrics vs goals with interpretation clearly separated." }
+
+collaboration:
+  can_delegate_to: [research, creative, bi]
+  accepts_from: [user, orchestrator, assistant, creative, bi]
+  shared_capabilities: [brainstorming_engine, research_retrieval_engine, memory_service, planning_engine]
+  provides: []
+
+permissions: [agents:use, tasks:create]
+approvals:
+  - key: publish_content
+    description: Any post, schedule or public content change. The approver sees the exact text, account and time.
+    tools: [social.publish]
+    approver_permission: approvals:decide
+    timeout_hours: 72
+    on_timeout: expire_and_replan
+  - key: spend_money
+    description: Creating, increasing or reallocating paid budgets. Requires billing permission.
+    tools: [ads.budget_change]
+    approver_permission: billing:manage
+    timeout_hours: 24
+    on_timeout: cancel_execution
+
+recovery:
+  - { error: tool_error, strategy: retry_backoff, max_attempts: 2 }
+  - { error: tool_timeout, strategy: retry_backoff, max_attempts: 2 }
+  - { error: model_unavailable, strategy: fallback_model, max_attempts: 2 }
+  - { error: approval_rejected, strategy: replan, max_attempts: 1 }
+  - { error: approval_expired, strategy: fail, max_attempts: 0 }
+  - { error: missing_context, strategy: ask_user, max_attempts: 1 }
+  - { error: policy_violation, strategy: fail, max_attempts: 0 }
+
+limits:
+  max_steps: 30
+  max_runtime_seconds: 1800
+  max_credits: 250
+  max_tool_calls: 120
+  max_parallel_subtasks: 2
+  max_delegation_depth: 1
+
+quality:
+  - { metric: brand_consistency, threshold: 0.85, direction: min, description: "Rubric score for tone, terminology and banned-claim avoidance." }
+  - { metric: unapproved_external_actions, threshold: 0, direction: max, description: "External/financial tool calls without an approved request (must be zero)." }
+  - { metric: platform_limit_compliance, threshold: 1.0, direction: min, description: "Copy fits channel length/format limits." }
+  - { metric: unsupported_product_claims, threshold: 0, direction: max, description: "Product claims not present in brief or brand memory." }
+
+rules:
+  - no_publish_or_spend_without_approval
+  - respect_brand_voice
+  - no_unconfirmed_product_claims
+  - label_estimates

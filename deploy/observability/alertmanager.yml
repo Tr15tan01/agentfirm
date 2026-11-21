@@ -1,0 +1,16 @@
+# Route alerts to the on-call channel. Replace the receiver URL with your Slack/Telegram/Discord
+# webhook bridge or email settings (kept out of git: mount a private file in production).
+route:
+  receiver: oncall
+  group_by: [alertname]
+  group_wait: 30s
+  repeat_interval: 4h
+  routes:
+    - matchers: [severity="ticket"]
+      receiver: oncall
+      repeat_interval: 24h
+receivers:
+  - name: oncall
+    webhook_configs:
+      - url: http://alert-bridge.invalid/webhook  # placeholder: set before launch
+        send_resolved: true
