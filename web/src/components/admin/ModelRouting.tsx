@@ -323,7 +323,8 @@ function RoutingEditor({ data }: { data: RoutingData }) {
                 </div>
                 <Switch.Root
                   checked={enabled[p.key]}
-                  disabled={p.status === "not_configured"}
+                  // A provider without a key can't be switched on, but one that is on can always be switched off.
+                  disabled={p.status === "not_configured" && !enabled[p.key]}
                   onCheckedChange={(v) => setEnabled((e) => ({ ...e, [p.key]: v }))}
                   aria-label={`Enable ${p.name}`}
                   className="relative h-5 w-9 shrink-0 rounded-full border border-line bg-card-2 transition-colors disabled:opacity-40 data-[state=checked]:border-transparent data-[state=checked]:bg-accent"

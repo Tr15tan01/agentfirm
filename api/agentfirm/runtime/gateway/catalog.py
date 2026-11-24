@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
+from .adapters import gemini_api_root
 from .types import ProviderError
 
 OPENAI_BASE = "https://api.openai.com/v1"
@@ -59,7 +60,7 @@ async def fetch_models(client: httpx.AsyncClient, provider: str, api_key: str | 
 async def _gemini(client: httpx.AsyncClient, api_key: str | None, base_url: str | None) -> list[FetchedModel]:
     if not api_key:
         raise ProviderError("gemini: API key not configured", retriable=False)
-    base = (base_url or GEMINI_BASE).rstrip("/")
+    base = gemini_api_root(base_url)
     found: list[FetchedModel] = []
     token: str | None = None
     for _ in range(MAX_PAGES):

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from typing import Any, Protocol
+from urllib.parse import urlparse
 
 import httpx
 
@@ -87,9 +88,21 @@ class OpenAICompatible:
         return ModelResponse(text=text, tokens_in=int(usage.get("prompt_tokens", 0)), tokens_out=int(usage.get("completion_tokens", 0)))
 
 
+GEMINI_DEFAULT_BASE = "https://generativelanguage.googleapis.com/v1beta"
+
+
+def gemini_api_root(base_url: str | None) -> str:
+    """Gemini's REST API lives under /v1beta. A stored bare host (no path) gets that version added,
+    so a base URL saved as https://generativelanguage.googleapis.com still reaches the right endpoint."""
+    base = (base_url or "").rstrip("/") or GEMINI_DEFAULT_BASE
+    if urlparse(base).path in ("", "/"):
+        base += "/v1beta"
+    return base
+
+
 class Gemini:
     provider = "gemini"
-    default_base_url = "https://generativelanguage.googleapis.com/v1beta"
+    default_base_url = GEMINI_DEFAULT_BASE
 
     async def complete(self, client: httpx.AsyncClient, req: ModelRequest, *, model: str, api_key: str | None, base_url: str | None) -> ModelResponse:
         if not api_key:
@@ -111,7 +124,7 @@ class Gemini:
         if contents and contents[-1]["role"] == "model":
             # These models reject a conversation that ends with a model turn; ask for the next step.
             contents.append({"role": "user", "parts": [{"text": "Continue."}]})
-        base = (base_url or self.default_base_url).rstrip("/")
+        base = gemini_api_root(base_url)
         resp = await client.post(f"{base}/models/{model}:generateContent", json=body, headers={"x-goog-api-key": api_key})
         _raise_for(resp, "gemini")
         data = resp.json()

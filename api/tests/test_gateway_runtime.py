@@ -82,6 +82,14 @@ async def test_gemini_3_keeps_temperature_only_on_models_that_accept_it():
 
 
 @respx.mock
+async def test_gemini_bare_host_base_url_gets_v1beta_prefix():
+    route = respx.post(url__regex=r"https://generativelanguage\.googleapis\.com/v1beta/models/gemini-3\.8-flash:generateContent").respond(200, json={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
+    async with httpx.AsyncClient() as c:
+        await ADAPTERS["gemini"].complete(c, req(), model="gemini-3.8-flash", api_key="g-key", base_url="https://generativelanguage.googleapis.com")
+    assert route.called
+
+
+@respx.mock
 async def test_gemini_conversation_ending_in_model_turn_gets_continue():
     route = respx.post(url__regex=r".*generateContent").respond(200, json={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
     from agentfirm.runtime.gateway.types import Message, ModelRequest
