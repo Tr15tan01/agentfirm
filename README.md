@@ -3,15 +3,15 @@
 **Your AI team. Ready to work.** A multi-tenant SaaS platform where specialised AI agents work
 alone or together, coordinated by a central orchestrator.
 
-| Path | What |
-|---|---|
-| `docs/ARCHITECTURE.md` | Architecture, design system, ERD, execution model, tenancy security, roadmap, risks |
-| `docs/screens/` | Phase-1 screenshots (dark, light, mobile, admin routing) |
-| `web/` | Next.js 16 · React 19 · Tailwind CSS 4 · Motion · Recharts · Radix · Lucide |
-| `api/` | FastAPI · SQLAlchemy 2 · Alembic · PostgreSQL 16 (RLS) · Redis · argon2id · EdDSA JWT |
-| `docs/agents/` | Agent Interface spec + six agent specifications (Phase 3.5) |
-| `docs/adr/` | Architecture decisions (sign-in, tenant isolation) |
-| `docker-compose.yml` | Postgres (pgvector) · Redis · migrate · API · web |
+| Path                   | What                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------- | --- |
+| `docs/ARCHITECTURE.md` | Architecture, design system, ERD, execution model, tenancy security, roadmap, risks   |
+| `docs/screens/`        | Phase-1 screenshots (dark, light, mobile, admin routing)                              |
+| `web/`                 | Next.js 16 · React 19 · Tailwind CSS 4 · Motion · Recharts · Radix · Lucide           |
+| `api/`                 | FastAPI · SQLAlchemy 2 · Alembic · PostgreSQL 16 (RLS) · Redis · argon2id · EdDSA JWT |
+| `docs/agents/`         | Agent Interface spec + six agent specifications (Phase 3.5)                           |
+| `docs/adr/`            | Architecture decisions (sign-in, tenant isolation)                                    |
+| `docker-compose.yml`   | Postgres (pgvector) · Redis · migrate · API · web                                     | t   |
 
 ## Run everything with Docker
 
@@ -70,7 +70,7 @@ Live mode reads data in the browser through the BFF (`/api/...`), because the re
   indeterminate), collaborating, completed and failed states. It honours
   `prefers-reduced-motion`.
 - **`AgentCollaborationCore`**: orchestrator hub plus participating agents. Participant state is
-  *derived from the event stream*, never set by hand.
+  _derived from the event stream_, never set by hand.
 - **Dashboard**: command-center input (auto or manual agent selection, multi-agent), six agent
   cards, active tasks, a live collaboration panel with an execution timeline, usage charts and
   recent activity.
@@ -87,16 +87,16 @@ implementation. The default is the demo adapter (`web/src/mocks/adapter.ts`); se
 `NEXT_PUBLIC_AGENTFIRM_API=http` switches to the HTTP adapter (`web/src/lib/api/http.ts`), which is
 ready for the Phase-3 backend.
 
-| Screen | Route | Highlights |
-|---|---|---|
-| Agent directory | `/agents` | Mission, capabilities, tools (approval-gated ones marked), routed models, usage, recent runs, search and status filter |
-| Agent workspace | `/agents/[key]` | Three panels: conversations, projects and knowledge · streamed markdown chat with code highlighting, copy and stop · live execution with steps, tools, artifacts and approvals |
-| Creative idea board | `/agents/creative` | Nine thinking approaches, streamed idea generation, drag-and-drop board, inline edit, compare (up to 4), send to Research, Marketing, BI or Engineer |
-| Tasks & runs | `/tasks` | Approval queue, status tabs, search, progress (indeterminate when unknown) |
-| Task monitor | `/tasks/[id]` | Pause, resume, cancel (with confirmation), retry from checkpoint · subtask DAG · timeline, tool calls, filterable logs, artifacts · pinned agent versions |
-| Collaboration | `/collaboration` | Composer, 8-stage orchestrator pipeline derived from subtask states, dependency graph, participating agents, approval gates |
-| Usage & billing | `/billing` | 7, 30 or 90 days · tokens per day · usage by agent, model (with cost estimate) and member · limits and alerts · invoices |
-| Settings | `/settings` | General · members and roles (invite, change role) · brand voice · appearance (system, dark or light) · notifications · security |
+| Screen              | Route              | Highlights                                                                                                                                                                     |
+| ------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Agent directory     | `/agents`          | Mission, capabilities, tools (approval-gated ones marked), routed models, usage, recent runs, search and status filter                                                         |
+| Agent workspace     | `/agents/[key]`    | Three panels: conversations, projects and knowledge · streamed markdown chat with code highlighting, copy and stop · live execution with steps, tools, artifacts and approvals |
+| Creative idea board | `/agents/creative` | Nine thinking approaches, streamed idea generation, drag-and-drop board, inline edit, compare (up to 4), send to Research, Marketing, BI or Engineer                           |
+| Tasks & runs        | `/tasks`           | Approval queue, status tabs, search, progress (indeterminate when unknown)                                                                                                     |
+| Task monitor        | `/tasks/[id]`      | Pause, resume, cancel (with confirmation), retry from checkpoint · subtask DAG · timeline, tool calls, filterable logs, artifacts · pinned agent versions                      |
+| Collaboration       | `/collaboration`   | Composer, 8-stage orchestrator pipeline derived from subtask states, dependency graph, participating agents, approval gates                                                    |
+| Usage & billing     | `/billing`         | 7, 30 or 90 days · tokens per day · usage by agent, model (with cost estimate) and member · limits and alerts · invoices                                                       |
+| Settings            | `/settings`        | General · members and roles (invite, change role) · brand voice · appearance (system, dark or light) · notifications · security                                                |
 
 Also new: a **New Task** dialog everywhere (⌘/Ctrl+Enter), toast notifications, and skeleton loading for chat.
 
@@ -146,7 +146,7 @@ Also new: a **New Task** dialog everywhere (⌘/Ctrl+Enter), toast notifications
 - **Live events:** `GET /v1/tasks/{id}/stream` (SSE, `Last-Event-ID` resume, 5-minute re-auth window).
 - **New APIs:** knowledge documents (text/Markdown/PDF), the idea board, and organisation memories.
 - **Agents:** Creative (ideation, evaluation, Six Hats/SCAMPER/premortem/debate sessions, develop and hand off) and Research
-  (deep research with verified citations, document analysis, fact check). A Research claim is only marked *verified*
+  (deep research with verified citations, document analysis, fact check). A Research claim is only marked _verified_
   if its excerpt is found in a source collected during that run and re-confirmed before delivery.
 - **Eval harness:** runs each suite end-to-end. The baseline is 29/29 machine checks in `docs/evals/`; rubric items stay pending until an LLM judge runs with live models.
 - **Decisions:** [ADR 0003](docs/adr/0003-agent-engine-and-workers.md).
@@ -179,10 +179,10 @@ Also new: a **New Task** dialog everywhere (⌘/Ctrl+Enter), toast notifications
   browser end-to-end flows (register → knowledge → task → approval → result; integrations; admin routing).
 - **Decisions:** [ADR 0004](docs/adr/0004-connectors-authority-and-live-screens.md).
 
-| Task awaiting approval | Task result |
-|---|---|
+| Task awaiting approval                      | Task result                               |
+| ------------------------------------------- | ----------------------------------------- |
 | ![](docs/screens/phase4b-task-approval.png) | ![](docs/screens/phase4b-task-result.png) |
-| ![](docs/screens/phase4b-integrations.png) | ![](docs/screens/phase4b-knowledge.png) |
+| ![](docs/screens/phase4b-integrations.png)  | ![](docs/screens/phase4b-knowledge.png)   |
 
 ## Phase 5 — what's included
 
@@ -206,8 +206,8 @@ Also new: a **New Task** dialog everywhere (⌘/Ctrl+Enter), toast notifications
   connectors), 204 API tests, browser end-to-end (compose → plan → research → handoff → approval → result).
 - **Decisions:** [ADR 0005](docs/adr/0005-orchestrator.md).
 
-| Collaboration waiting for approval | Collaboration page |
-|---|---|
+| Collaboration waiting for approval        | Collaboration page                         |
+| ----------------------------------------- | ------------------------------------------ |
 | ![](docs/screens/phase5-task-waiting.png) | ![](docs/screens/phase5-collaboration.png) |
 
 ## Phase 6 — what's included
@@ -230,12 +230,12 @@ Also new: a **New Task** dialog everywhere (⌘/Ctrl+Enter), toast notifications
 
 **Going live with Paddle (sandbox first):** create products and monthly prices (plans) and one-time prices
 (credit packs) in Paddle; set the default payment link to `https://<app>/billing/checkout` and get the domain approved;
-add a notification destination `https://<domain>/api/paddle/webhook` (or `https://<domain>/v1/billing/paddle/webhook` behind the Caddy setup, which routes it straight to the API) (subscription.* and transaction.completed);
+add a notification destination `https://<domain>/api/paddle/webhook` (or `https://<domain>/v1/billing/paddle/webhook` behind the Caddy setup, which routes it straight to the API) (subscription.\* and transaction.completed);
 set `AGENTFIRM_PADDLE_MODE=live`, the API key, webhook secret and `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`; enter prices and
 `pri_…` IDs in Platform → Plans. Then test: subscribe, upgrade, top-up, cancel and a failed payment.
 
-| Usage & Billing (after upgrading) | Platform → Plans & pricing |
-|---|---|
+| Usage & Billing (after upgrading)    | Platform → Plans & pricing               |
+| ------------------------------------ | ---------------------------------------- |
 | ![](docs/screens/phase6-billing.png) | ![](docs/screens/phase6-admin-plans.png) |
 
 ## Phase 7 — what's included
@@ -249,6 +249,7 @@ set `AGENTFIRM_PADDLE_MODE=live`, the API key, webhook secret and `NEXT_PUBLIC_P
   - Sandboxed artifact downloads.
 
   Bandit, pip-audit and npm audit are clean.
+
 - **Hardening found by testing:**
   - The load test exposed a sign-up race (500) and Argon2 blocking the event loop. Both are fixed.
   - The restore drill caught orphan rows. They are cleaned, and `verify.sql` now checks for them on every restore.
@@ -268,6 +269,7 @@ set `AGENTFIRM_PADDLE_MODE=live`, the API key, webhook secret and `NEXT_PUBLIC_P
 - **Decisions:** [ADR 0007](docs/adr/0007-production-readiness.md).
 
 **Verified here vs. on the server:**
+
 - **Verified here:** tests, scans, Caddy and Prometheus configs (run with the real binaries), the restore drill and the load test.
 - **Not verified here:** this build environment has no VPS and no Docker daemon. The first real deploy, a restore drill on
   the server, a live Paddle sandbox run, live-model evals and an **external penetration test** are on the launch checklist.
@@ -275,6 +277,7 @@ set `AGENTFIRM_PADDLE_MODE=live`, the API key, webhook secret and `NEXT_PUBLIC_P
 ## Deploying
 
 Two supported ways to run AgentFirm in production on a single server:
+
 - **VPS Control Center, no Docker:** four applications plus PostgreSQL and Redis on the same server. Run
   `deploy/vcc/setup-server.sh`, then follow [docs/ops/deploy-vps-control-center.md](docs/ops/deploy-vps-control-center.md)
   (it includes every environment variable).
@@ -291,6 +294,7 @@ indeterminate indicator. The app never shows an invented percentage.
 ## Next
 
 All seven phases are delivered. Before launch, work through [docs/ops/launch-checklist.md](docs/ops/launch-checklist.md):
+
 - the first VPS deploy;
 - the restore drill and load test, repeated on the server;
 - the Paddle sandbox run;
