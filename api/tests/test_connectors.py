@@ -213,17 +213,21 @@ def test_gn7t_allows_selects_with_comments_and_literals():
 
 
 @respx.mock
-async def test_gn7t_live_contract(client):
+async def test_gn7t_live_queries_fail_clearly_without_calling_missing_routes(client):
     from agentfirm.runtime.connectors import services
 
     a = await register(client, org="Data Co")
     await client.post("/v1/integrations/connections", headers=a.h, json={"kind": "gn7t", "name": "GN7T", "config": {"base_url": "https://gn7t.example.com"}, "secret": "gk_123456"})
-    route = respx.post("https://gn7t.example.com/v1/query").respond(200, json={"columns": ["month", "revenue"], "rows": [["2026-09", 10.5], ["2026-10", 11.0]]})
+    query_route = respx.post("https://gn7t.example.com/v1/query").respond(200, json={})
+    datasets_route = respx.get("https://gn7t.example.com/v1/datasets").respond(200, json={})
     with live_connectors():
-        out = await services.gn7t_query(ctx_for(a.org_id), "SELECT month, revenue FROM revenue_monthly", 100)
-    sent = json.loads(route.calls[0].request.content)
-    assert sent["read_only"] is True and sent["max_rows"] == 100
-    assert out["rows"] == [{"month": "2026-09", "revenue": 10.5}, {"month": "2026-10", "revenue": 11.0}] and out["dataset"] == "revenue_monthly"
+        with pytest.raises(StepError) as q:
+            await services.gn7t_query(ctx_for(a.org_id), "SELECT month, revenue FROM revenue_monthly", 100)
+        with pytest.raises(StepError) as d:
+            await services.gn7t_datasets(ctx_for(a.org_id))
+    assert q.value.code == ErrorCode.TOOL_ERROR and d.value.code == ErrorCode.TOOL_ERROR
+    assert "not available" in str(q.value)
+    assert not query_route.called and not datasets_route.called
 
 
 @respx.mock

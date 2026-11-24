@@ -195,7 +195,7 @@ I have **not** deployed anything. A preview deploy needs your approval.`;
 export const MESSAGES: Record<string, ChatMessage[]> = {
   cnv_r1: [
     { id: "m1", role: "user", content: "Research the English-learning market in Central & Eastern Europe. Where are the real opportunities?", createdSecondsAgo: 1_200, attachments: [{ name: "pricing-notes.pdf", kind: "pdf", sizeKb: 412 }] },
-    { id: "m2", role: "assistant", content: RESEARCH_REPLY, createdSecondsAgo: 60, model: "gemini-2.5-pro · reasoning", executionId: "exe_01JD8K4V9R" },
+    { id: "m2", role: "assistant", content: RESEARCH_REPLY, createdSecondsAgo: 60, model: "gemini-3.8-flash · reasoning", executionId: "exe_01JD8K4V9R" },
   ],
   cnv_e1: [
     { id: "m1", role: "user", content: "Customers are being double-charged occasionally. Look at the billing webhooks and fix it — with tests.", createdSecondsAgo: 600 },
@@ -277,11 +277,11 @@ export const TASK_DETAILS: Record<string, TaskDetail> = {
     logs: [
       { atMs: 0, level: "info", source: "orchestrator", message: "plan.created steps=9 agents=4 branches=2" },
       { atMs: 1_800, level: "info", source: "orchestrator", message: "subtask.spawned agent=research id=st_research" },
-      { atMs: 4_200, level: "debug", source: "gateway", message: "route capability=reasoning → gemini:gemini-2.5-pro (primary)" },
+      { atMs: 4_200, level: "debug", source: "gateway", message: "route capability=reasoning → gemini:gemini-3.8-flash (primary)" },
       { atMs: 7_050, level: "warn", source: "research", message: "2 sources disagree on market size (Δ≈30%) — keeping both, flagged" },
       { atMs: 13_800, level: "info", source: "tools", message: "gn7t.query ok rows=1,284 ms=2410" },
       { atMs: 16_500, level: "info", source: "artifacts", message: "artifact.created opportunity-matrix.xlsx 48KB" },
-      { atMs: 19_900, level: "debug", source: "gateway", message: "route capability=creative → gemini:gemini-2.5-flash" },
+      { atMs: 19_900, level: "debug", source: "gateway", message: "route capability=creative → gemini:gemini-3.5-flash-lite" },
       { atMs: 21_000, level: "warn", source: "approvals", message: "approval.requested tool=ads.simulate side_effect=financial" },
     ],
     artifacts: [

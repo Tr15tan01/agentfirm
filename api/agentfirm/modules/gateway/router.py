@@ -11,7 +11,7 @@ from fastapi import APIRouter
 from agentfirm.core.deps import DbSession, SuperAdmin
 
 from . import service
-from .service import CredentialIn, ModelIn, ModelOut, OrgSummary, ProviderOut, ProviderPatch, RouteIn, RouteOut
+from .service import CredentialIn, ImportResult, ModelIn, ModelOut, ModelPatch, OrgSummary, ProviderOut, ProviderPatch, RouteIn, RouteOut
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -41,6 +41,17 @@ async def list_models(admin: SuperAdmin, session: DbSession) -> list[ModelOut]:
 @router.post("/models", response_model=ModelOut, status_code=201)
 async def create_model(body: ModelIn, admin: SuperAdmin, session: DbSession) -> ModelOut:
     return await service.create_model(session, admin, body)
+
+
+@router.post("/providers/{provider_id}/import-models", response_model=ImportResult)
+async def import_models(provider_id: UUID, admin: SuperAdmin, session: DbSession) -> ImportResult:
+    """Pull the provider's model list (new models are created disabled for review)."""
+    return await service.import_models(session, admin, provider_id)
+
+
+@router.patch("/models/{model_id}", response_model=ModelOut)
+async def patch_model(model_id: UUID, body: ModelPatch, admin: SuperAdmin, session: DbSession) -> ModelOut:
+    return await service.patch_model(session, admin, model_id, body)
 
 
 @router.get("/routes", response_model=list[RouteOut])

@@ -84,7 +84,7 @@
 <!-- BEGIN GENERATED: models -->
 - **Capabilities requested from the Model Gateway:** `reasoning`, `code`, `summarize`, `classify` (default `reasoning`)
 - **Temperatures:** reasoning 0.1, code 0.0, summarize 0.2 · **max output tokens:** 8000
-- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T, Tea-800) — the agent never names a model.
+- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T) — the agent never names a model.
 - **Routing hints:**
   - All arithmetic is done in data.analyze; models only plan and interpret.
 <!-- END GENERATED: models -->

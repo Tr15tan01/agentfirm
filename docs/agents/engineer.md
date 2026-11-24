@@ -82,7 +82,7 @@
 <!-- BEGIN GENERATED: models -->
 - **Capabilities requested from the Model Gateway:** `code`, `reasoning`, `long_context`, `text`, `classify` (default `code`)
 - **Temperatures:** code 0.1, reasoning 0.2, text 0.3 · **max output tokens:** 16000
-- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T, Tea-800) — the agent never names a model.
+- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T) — the agent never names a model.
 - **Routing hints:**
   - Prefer strongest code model for implement/fix steps; cheaper text model for reports.
 <!-- END GENERATED: models -->

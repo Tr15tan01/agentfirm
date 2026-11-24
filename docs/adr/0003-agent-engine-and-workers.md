@@ -38,7 +38,7 @@ Programs reach models and tools only through `ExecutionContext`. Tool calls are 
 - Progress stays `null` until a plan exists.
 
 ## Provider assumptions (to confirm)
-- **GN7T and Tea-800** are assumed to be OpenAI-compatible (`/chat/completions`, `max_tokens`, `response_format: json_object`), each with an admin-configured `base_url`. If either differs, it needs its own adapter; the gateway interface doesn't change. (R-1, R-2)
+- **GN7T** is OpenAI-compatible (`/chat/completions`, `max_tokens`) with an admin-configured `base_url`. It refuses `response_format` other than text, so the JSON schema is sent in the prompt instead. Tea-800 was removed. (R-1, R-2)
 - **Web search** defaults to the Brave Search API (`AGENTFIRM_BRAVE_API_KEY`). The provider sits behind `web.search` and can be swapped.
 - **OpenAI** uses Chat Completions with `max_completion_tokens` and native JSON-schema output. It retries once without `temperature` for models that reject it. **Gemini** uses `generateContent` with the key in the `x-goog-api-key` header (never the URL).
 

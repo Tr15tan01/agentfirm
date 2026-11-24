@@ -142,7 +142,7 @@ def models(m: AgentManifest, _: Registry) -> str:
     return (
         f"- **Capabilities requested from the Model Gateway:** {_code(list(m.models.capabilities))} (default `{m.models.default_capability}`)\n"
         f"- **Temperatures:** {temps} · **max output tokens:** {m.models.max_output_tokens}\n"
-        f"- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T, Tea-800) — the agent never names a model.\n"
+        f"- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T) — the agent never names a model.\n"
         f"- **Routing hints:**{prefs or ' none'}\n"
     )
 

@@ -8,6 +8,7 @@
  */
 import type {
   AgentKey,
+  CapabilityKey,
   AgentProfile,
   AgentSummary,
   ApprovalRequest,
@@ -20,6 +21,7 @@ import type {
   KnowledgeDoc,
   Member,
   MemoryEntry,
+  ModelImportResult,
   RoutingData,
   RoutingRoute,
   TaskEvent,
@@ -120,6 +122,9 @@ export interface AgentFirmApi {
     saveRoute(route: RoutingRoute): Promise<void>;
     updateProvider(providerId: string, patch: { enabled?: boolean; baseUrl?: string }): Promise<void>;
     setCredential(providerId: string, apiKey: string): Promise<{ last4: string }>;
+    /** Fetches the provider's own model list; new models are created disabled for review. */
+    importModels(providerId: string): Promise<ModelImportResult>;
+    updateModel(modelId: string, patch: { enabled?: boolean; label?: string; capabilities?: CapabilityKey[]; priceIn?: number | null; priceOut?: number | null }): Promise<void>;
   };
 
   /** Plans, credits and Paddle billing for the current workspace (Phase 6). */

@@ -58,11 +58,11 @@ async def test_openai_retries_without_temperature_when_model_rejects_it():
 
 @respx.mock
 async def test_gemini_request_shape():
-    route = respx.post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent").respond(
+    route = respx.post("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent").respond(
         200, json={"candidates": [{"content": {"parts": [{"text": "{}"}]}}], "usageMetadata": {"promptTokenCount": 7, "candidatesTokenCount": 2}}
     )
     async with httpx.AsyncClient() as c:
-        resp = await ADAPTERS["gemini"].complete(c, req({"type": "object"}), model="gemini-2.5-flash", api_key="g-key", base_url=None)
+        resp = await ADAPTERS["gemini"].complete(c, req({"type": "object"}), model="gemini-3.5-flash-lite", api_key="g-key", base_url=None)
     r = route.calls[0].request
     sent = json.loads(r.content)
     assert r.headers["x-goog-api-key"] == "g-key" and "key=" not in str(r.url), "key goes in a header, never the URL"
@@ -70,6 +70,26 @@ async def test_gemini_request_shape():
     assert sent["contents"] == [{"role": "user", "parts": [{"text": "hello"}]}]
     assert sent["generationConfig"]["responseMimeType"] == "application/json"
     assert (resp.tokens_in, resp.tokens_out) == (7, 2)
+    assert "temperature" not in sent["generationConfig"], "Gemini 3.5+ rejects sampling parameters"
+
+
+@respx.mock
+async def test_gemini_3_keeps_temperature_only_on_models_that_accept_it():
+    route = respx.post(url__regex=r".*/models/gemini-2\.0-flash:generateContent").respond(200, json={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
+    async with httpx.AsyncClient() as c:
+        await ADAPTERS["gemini"].complete(c, req(temperature=0.2), model="gemini-2.0-flash", api_key="g-key", base_url=None)
+    assert json.loads(route.calls[0].request.content)["generationConfig"]["temperature"] == 0.2
+
+
+@respx.mock
+async def test_gemini_conversation_ending_in_model_turn_gets_continue():
+    route = respx.post(url__regex=r".*generateContent").respond(200, json={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
+    from agentfirm.runtime.gateway.types import Message, ModelRequest
+    prefilled = ModelRequest(task="t", messages=[Message("system", "be brief"), Message("user", "hi"), Message("assistant", "partial")], max_tokens=50, temperature=0.2, json_schema=None)
+    async with httpx.AsyncClient() as c:
+        await ADAPTERS["gemini"].complete(c, prefilled, model="gemini-3.8-flash", api_key="g-key", base_url=None)
+    contents = json.loads(route.calls[0].request.content)["contents"]
+    assert contents[-1] == {"role": "user", "parts": [{"text": "Continue."}]}
 
 
 @respx.mock
@@ -82,7 +102,7 @@ async def test_gemini_safety_block_is_not_retriable():
 
 
 @respx.mock
-@pytest.mark.parametrize("provider", ["gn7t", "tea800"])
+@pytest.mark.parametrize("provider", ["gn7t"])
 async def test_inhouse_providers_are_openai_compatible_and_need_base_url(provider):
     async with httpx.AsyncClient() as c:
         with pytest.raises(ProviderError, match="base_url"):
@@ -90,9 +110,10 @@ async def test_inhouse_providers_are_openai_compatible_and_need_base_url(provide
         route = respx.post("https://llm.internal.example/v1/chat/completions").respond(200, json={"choices": [{"message": {"content": "{}"}}]})
         await ADAPTERS[provider].complete(c, req({"type": "object"}), model="local-70b", api_key=None, base_url="https://llm.internal.example/v1/")
     sent = json.loads(route.calls[0].request.content)
-    assert sent["max_tokens"] == 500 and sent["response_format"] == {"type": "json_object"}
+    assert sent["max_tokens"] == 500
+    assert "response_format" not in sent, "GN7T refuses any response_format other than text"
     assert "authorization" not in route.calls[0].request.headers
-    assert "JSON" in sent["messages"][-1]["content"]
+    assert any("JSON" in m["content"] for m in sent["messages"]), "schema must travel in a system message"
 
 
 @respx.mock

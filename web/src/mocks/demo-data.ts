@@ -129,7 +129,7 @@ export const DEMO_TIMELINE: TimelineEvent[] = [
   { seq: 1, kind: "plan", agent: "orchestrator", title: "Execution plan created", detail: "9 steps · 4 agents · 2 parallel branches", atMs: 0 },
   { seq: 2, kind: "subtask", agent: "research", title: "Subtask assigned: market sizing", atMs: 1_800 },
   { seq: 3, kind: "tool_call", agent: "research", title: "web.search", detail: "\"English learning app market CEE 2026\"", atMs: 4_200 },
-  { seq: 4, kind: "model_call", agent: "research", title: "Reasoning · gemini-2.5-pro", detail: "Routed via capability: reasoning", atMs: 7_000 },
+  { seq: 4, kind: "model_call", agent: "research", title: "Reasoning · gemini-3.8-flash", detail: "Routed via capability: reasoning", atMs: 7_000 },
   { seq: 5, kind: "step_completed", agent: "research", title: "Evidence collected", detail: "23 sources · 6 flagged low-confidence", atMs: 9_600 },
   { seq: 6, kind: "subtask", agent: "bi", title: "Subtask assigned: opportunity scoring", atMs: 11_400 },
   { seq: 7, kind: "tool_call", agent: "bi", title: "gn7t.query", detail: "segment_revenue · read-only", atMs: 13_800 },
@@ -221,8 +221,8 @@ export const DEMO_PROVIDERS: DemoProvider[] = [
     credentialHint: "AIza…7cQe",
     latencyMs: 710,
     models: [
-      { id: "gemini:gemini-2.5-pro", label: "Gemini 2.5 Pro", capabilities: ["reasoning", "text", "code", "long_context", "vision"], priceIn: 1.25, priceOut: 10 },
-      { id: "gemini:gemini-2.5-flash", label: "Gemini 2.5 Flash", capabilities: ["text", "summarize", "classify", "creative", "vision"], priceIn: 0.3, priceOut: 2.5 },
+      { id: "gemini:gemini-3.8-flash", label: "Gemini 3.8 Flash", capabilities: ["reasoning", "text", "code", "long_context", "vision"], priceIn: 1.5, priceOut: 7.5 },
+      { id: "gemini:gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite", capabilities: ["text", "summarize", "classify", "creative", "vision"], priceIn: 0.3, priceOut: 2.5 },
       { id: "gemini:gemini-embedding", label: "Gemini Embedding", capabilities: ["embeddings"], priceIn: 0.15, priceOut: null },
     ],
   },
@@ -238,17 +238,6 @@ export const DEMO_PROVIDERS: DemoProvider[] = [
       { id: "gn7t:gn7t-embed", label: "GN7T Embed", capabilities: ["embeddings"], priceIn: null, priceOut: null },
     ],
   },
-  {
-    key: "tea800",
-    name: "Tea-800",
-    kind: "Self-hosted GPU inference",
-    status: "not_configured",
-    credentialHint: null,
-    latencyMs: null,
-    models: [
-      { id: "tea800:tea-800", label: "Tea-800", capabilities: ["text", "creative", "summarize"], priceIn: null, priceOut: null },
-    ],
-  },
 ];
 
 export interface DemoRoute {
@@ -259,13 +248,13 @@ export interface DemoRoute {
 }
 
 export const DEMO_ROUTES: DemoRoute[] = [
-  { capability: "reasoning", primary: "gemini:gemini-2.5-pro", fallbacks: ["openai:gpt-5"], temperature: 0.2 },
-  { capability: "text", primary: "openai:gpt-5-mini", fallbacks: ["gemini:gemini-2.5-flash", "gn7t:gn7t-core"], temperature: 0.6 },
-  { capability: "code", primary: "openai:gpt-5", fallbacks: ["gemini:gemini-2.5-pro"], temperature: 0.1 },
-  { capability: "summarize", primary: "gn7t:gn7t-core", fallbacks: ["gemini:gemini-2.5-flash"], temperature: 0.3 },
+  { capability: "reasoning", primary: "gemini:gemini-3.8-flash", fallbacks: ["openai:gpt-5"], temperature: 0.2 },
+  { capability: "text", primary: "openai:gpt-5-mini", fallbacks: ["gemini:gemini-3.5-flash-lite", "gn7t:gn7t-core"], temperature: 0.6 },
+  { capability: "code", primary: "openai:gpt-5", fallbacks: ["gemini:gemini-3.8-flash"], temperature: 0.1 },
+  { capability: "summarize", primary: "gn7t:gn7t-core", fallbacks: ["gemini:gemini-3.5-flash-lite"], temperature: 0.3 },
   { capability: "classify", primary: "gn7t:gn7t-core", fallbacks: ["openai:gpt-5-mini"], temperature: 0 },
-  { capability: "creative", primary: "gemini:gemini-2.5-flash", fallbacks: ["openai:gpt-5-mini"], temperature: 0.95 },
-  { capability: "vision", primary: "gemini:gemini-2.5-pro", fallbacks: ["openai:gpt-5"], temperature: 0.2 },
-  { capability: "long_context", primary: "gemini:gemini-2.5-pro", fallbacks: [], temperature: 0.2 },
+  { capability: "creative", primary: "gemini:gemini-3.5-flash-lite", fallbacks: ["openai:gpt-5-mini"], temperature: 0.95 },
+  { capability: "vision", primary: "gemini:gemini-3.8-flash", fallbacks: ["openai:gpt-5"], temperature: 0.2 },
+  { capability: "long_context", primary: "gemini:gemini-3.8-flash", fallbacks: [], temperature: 0.2 },
   { capability: "embeddings", primary: "openai:text-embedding-3-large", fallbacks: ["gn7t:gn7t-embed"], temperature: 0 },
 ];

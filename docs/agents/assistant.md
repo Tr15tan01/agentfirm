@@ -78,7 +78,7 @@
 <!-- BEGIN GENERATED: models -->
 - **Capabilities requested from the Model Gateway:** `classify`, `text`, `summarize`, `reasoning` (default `text`)
 - **Temperatures:** text 0.5, classify 0.0, summarize 0.3 · **max output tokens:** 4096
-- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T, Tea-800) — the agent never names a model.
+- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T) — the agent never names a model.
 - **Routing hints:**
   - Fast/cheap models for routing; capability-appropriate models via delegated agents.
 <!-- END GENERATED: models -->

@@ -23,7 +23,7 @@ async def _models(client, admin):
 async def test_platform_routes_seeded_for_every_capability(client, admin):
     routes = {r["capability"]: r for r in (await client.get("/v1/admin/routes", headers=admin.h)).json()}
     assert set(routes) == {"reasoning", "text", "code", "summarize", "classify", "creative", "vision", "long_context", "embeddings"}
-    assert routes["reasoning"]["primary"]["name"] == "gemini-2.5-pro"
+    assert routes["reasoning"]["primary"]["name"] == "gemini-3.8-flash"
     assert [m["provider"] for m in routes["text"]["fallbacks"]] == ["gemini", "gn7t"]
 
 
@@ -82,11 +82,11 @@ async def test_credentials_encrypted_and_never_returned(client, admin, owner_db)
 async def test_route_change_audited_as_platform_event(client, admin, owner_db):
     models = await _models(client, admin)
     await client.put(
-        "/v1/admin/routes/summarize", headers=admin.h, json={"primary": models["gemini-2.5-flash"]["id"], "fallbacks": [models["gn7t-core"]["id"]]}
+        "/v1/admin/routes/summarize", headers=admin.h, json={"primary": models["gemini-3.5-flash-lite"]["id"], "fallbacks": [models["gn7t-core"]["id"]]}
     )
     row = await owner_db.fetchrow("SELECT org_id, actor_user_id, before, after FROM audit_logs WHERE action = 'gateway.route_updated' ORDER BY id DESC LIMIT 1")
     assert row["org_id"] is None and str(row["actor_user_id"]) == admin.user_id
-    assert '"gemini-2.5-flash"' in row["after"]
+    assert '"gemini-3.5-flash-lite"' in row["after"]
 
 
 async def test_admin_lists_all_orgs_but_tenants_do_not(client, admin):

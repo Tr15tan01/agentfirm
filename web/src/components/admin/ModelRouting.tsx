@@ -47,7 +47,7 @@ const CAPABILITIES: Record<CapabilityKey, { label: string; hint: string; icon: L
   embeddings: { label: "Embeddings", hint: "Knowledge indexing and semantic search", icon: ListFilter },
 };
 
-const PROVIDER_MONO: Record<ProviderKey, string> = { openai: "OA", gemini: "GE", gn7t: "G7", tea800: "T8" };
+const PROVIDER_MONO: Record<ProviderKey, string> = { openai: "OA", gemini: "GE", gn7t: "G7" };
 
 type ModelRef = { id: string; label: string; provider: DemoProvider };
 
@@ -231,6 +231,24 @@ function RoutingEditor({ data }: { data: RoutingData }) {
   const [toast, setToast] = useState<string | null>(null);
   const [keyFor, setKeyFor] = useState<DemoProvider | null>(null);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState<string | null>(null);
+  const notify = useToast();
+  const importModels = async (p: DemoProvider) => {
+    setImporting(p.key);
+    try {
+      const r = await api.admin.importModels(p.id);
+      refresh("admin:routing");
+      notify({
+        tone: "success",
+        title: `${p.name}: ${r.added.length} new ${r.added.length === 1 ? "model" : "models"}`,
+        description: `${r.found} found upstream · ${r.alreadyPresent} already in catalog. ${r.note}`,
+      });
+    } catch (e) {
+      notify({ tone: "error", title: `Couldn't import ${p.name} models`, description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setImporting(null);
+    }
+  };
 
   const dirty = JSON.stringify(routes) !== JSON.stringify(data.routes) || JSON.stringify(enabled) !== JSON.stringify(initialEnabled);
 
@@ -326,7 +344,18 @@ function RoutingEditor({ data }: { data: RoutingData }) {
                   {p.kind !== "External API" ? "Configure" : p.credentialHint ? "Rotate" : "Add key"}
                 </button>
               </div>
-              <div className="mt-3 text-[12px] text-fg-3">{p.models.length} {p.models.length === 1 ? "model" : "models"} in catalog</div>
+              <div className="mt-3 flex items-center justify-between text-[12px] text-fg-3">
+                <span>{p.models.length} {p.models.length === 1 ? "model" : "models"} in catalog</span>
+                <button
+                  type="button"
+                  disabled={!enabled[p.key] || importing !== null}
+                  onClick={() => importModels(p)}
+                  className="font-medium text-accent hover:underline disabled:cursor-not-allowed disabled:text-fg-3 disabled:no-underline"
+                  title={enabled[p.key] ? "Fetch this provider's model list. New models stay disabled until you review them." : "Enable the provider to import its models"}
+                >
+                  {importing === p.key ? "Importing…" : "Import models"}
+                </button>
+              </div>
             </Card>
           ))}
         </div>

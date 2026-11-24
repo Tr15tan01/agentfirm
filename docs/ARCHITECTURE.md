@@ -2,14 +2,14 @@
 
 > Status: **v0.9** (Phases 1–7 delivered; launch steps in `docs/ops/launch-checklist.md`) · Owner: platform team · Last updated: 2026-11-17
 > Scope: answers the nine "First Task" items of the master brief, plus the super-admin
-> **per-task model routing** requirement (Gemini / OpenAI / GN7T / Tea-800).
+> **per-task model routing** requirement (Gemini / OpenAI / GN7T).
 
 ---
 
 ## 0. Repository inspection — findings
 
 The working environment contained **no existing AgentFirm repository** (no source, no git history,
-no GN7T or Tea-800 client code). Consequences:
+no GN7T client code). Consequences:
 
 * This repo is a fresh monorepo. Nothing was migrated.
 * The GN7T integration "built earlier" is **not available here**. Its API contract must be supplied
@@ -60,7 +60,7 @@ agentfirm/
 │   │   │   ├── tasks/            # Task Manager: tasks, executions, steps, events
 │   │   │   ├── orchestrator/     # LangGraph graphs (single-agent + multi-agent)
 │   │   │   ├── gateway/          # Model Gateway, routing policy, provider adapters
-│   │   │   │   └── providers/    # openai.py gemini.py gn7t.py tea800.py (behind Protocol)
+│   │   │   │   └── providers/    # openai.py gemini.py gn7t.py (behind Protocol)
 │   │   │   ├── tools/            # Tool Registry, tool executions, sandboxing policy
 │   │   │   ├── memory/           # conversation/user/project memory (pgvector)
 │   │   │   ├── knowledge/        # files, chunking, embeddings, retrieval
@@ -102,7 +102,6 @@ flowchart LR
     OAI[OpenAI]
     GEM[Google Gemini]
     GN7T[GN7T]
-    TEA[Tea-800 inference]
   end
   GN7TDB[GN7T Database Service API]
 
@@ -116,7 +115,7 @@ flowchart LR
   W --> PG
   W -- events --> R
   W --> GW{{Model Gateway}}
-  GW --> OAI & GEM & GN7T & TEA
+  GW --> OAI & GEM & GN7T
   W --> R2
   W -- tool adapter --> GN7TDB
 ```
@@ -263,7 +262,7 @@ Super-admins choose **which provider/model handles each kind of work**, with ord
 ```
 capabilities          id, key, label            -- reasoning, text, code, summarize, classify,
                                                 --   embeddings, vision, long_context, creative
-model_providers       id, key (openai|gemini|gn7t|tea800), base_url, status, adapter_version
+model_providers       id, key (openai|gemini|gn7t), base_url, status, adapter_version
 provider_credentials  id, provider_id, ciphertext, key_id, created_by, rotated_at  -- never returned
 models                id, provider_id, model_name, capabilities[], ctx_window,
                       price_in_per_1m, price_out_per_1m, status
@@ -399,7 +398,7 @@ flowchart TB
 | **2 — Frontend application** ✅ | Agent directory, agent workspace (3-panel), task monitor, collaboration view, creative idea board, usage, settings | All screens on typed mock adapters behind `lib/api` interfaces |
 | **3 — Backend foundation** ✅ | FastAPI, SQLAlchemy models + Alembic, Python sign-in (ADR 0001), RLS (ADR 0002), RBAC, audit log, admin model routing API, tenancy test suite | 66 tests green incl. cross-tenant suite; OpenAPI → TS types generated |
 | **3.5 — Agent specifications** ✅ | Six agent specs + shared Agent Interface spec (`docs/agents/`), executable manifests, tool catalog, 91 eval cases, version publish/rollback | Registry invariants + doc/schema drift checks green; **awaiting product sign-off** |
-| **4a — Agent Engine** ✅ | Model Gateway (OpenAI, Gemini, GN7T, Tea-800 adapters; fallback; circuit breaker; credits), Tool Registry runtime, DB-leased workers, LangGraph engine with Postgres checkpoints + approval interrupts, SSE, knowledge/ideas/memory APIs, Creative + Research agents, eval harness (ADR 0003) | ✅ Kill-worker-mid-run test resumes without re-running steps; eval baseline 29/29 machine checks (`docs/evals/`) |
+| **4a — Agent Engine** ✅ | Model Gateway (OpenAI, Gemini, GN7T adapters; model-list import; fallback; circuit breaker; credits), Tool Registry runtime, DB-leased workers, LangGraph engine with Postgres checkpoints + approval interrupts, SSE, knowledge/ideas/memory APIs, Creative + Research agents, eval harness (ADR 0003) | ✅ Kill-worker-mid-run test resumes without re-running steps; eval baseline 29/29 machine checks (`docs/evals/`) |
 | **4b — Live screens & agents** ✅ | Live data + SSE in the web app, Knowledge and Integrations screens, connectors + fixture world, Marketing, Engineer, BI, Assistant programs, report schedules, LLM judge for rubric items (ADR 0004) | ✅ 91/91 machine checks across six agents (simulated + fixture); browser end-to-end runs without mocks; 194 API tests |
 | **5 — Collaboration** ✅ | Orchestrator (validated subtask DAG, budgets, handoffs, synthesis), subtask approvals, pause/cancel cascade, live Collaboration page and subtask graph (ADR 0005) | ✅ 12/12 multi-agent eval cases (simulated); approval gates hold inside collaborations (tests + evals); 204 API tests |
 | **6 — Admin & monetization** ✅ | Plans & credit ledger, Paddle Billing (checkout, signed webhooks, portal, invoices, top-ups), super-admin plans/pricing/workspaces/agents/tools, standing approvals, reply-to-resume (ADR 0006) | ✅ Every admin mutation audit-logged (tests); credits, seats, concurrency and plan agents enforced server-side; 221 API tests; browser end-to-end in Paddle fixture mode |
@@ -412,7 +411,7 @@ flowchart TB
 | # | Item | Impact | Proposed handling |
 |---|---|---|---|
 | R-1 | **GN7T contract unknown here.** The brief calls GN7T a *Database Service*; the latest request lists it as an *AI provider*. Code built earlier is not in this workspace. | Can't implement adapter | **Assumption:** GN7T exposes an inference API usable as a model provider *and* a separate data API used as a tool. Need its OpenAPI spec, auth scheme and streaming format. |
-| R-2 | Tea-800 API contract (streaming, tool-calling, auth) unknown | Adapter scope | Ask for spec; if OpenAI-compatible, reuse the OpenAI adapter with a different base URL. |
+| R-2 | ~~Tea-800 API contract unknown~~ | — | **Resolved:** Tea-800 was removed from the platform. |
 | R-3 | Single Contabo VPS = single point of failure | Downtime, data loss | **Phase 7:** encrypted `pg_dump` to R2 every 6 h (RPO 6 h, RTO 1 h), restore drilled, external uptime check required at launch. Availability target 99.5 %. WAL archiving is *not* built (see R-30). |
 | R-4 | ~~Auth.js maintenance~~ | — | **Resolved:** sign-in moved to the Python API (ADR 0001). |
 | R-5 | Billing provider not specified (Stripe? Paddle? local?) | Phase 6 design | Decide before Phase 6; ledger is provider-agnostic. |

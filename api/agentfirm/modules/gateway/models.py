@@ -18,7 +18,7 @@ class ModelProvider(Base):
     __tablename__ = "model_providers"
 
     id: Mapped[UUID] = uuid_pk()
-    key: Mapped[str] = mapped_column(String(32), unique=True)  # openai | gemini | gn7t | tea800
+    key: Mapped[str] = mapped_column(String(32), unique=True)  # openai | gemini | gn7t
     name: Mapped[str] = mapped_column(String(80))
     kind: Mapped[str] = mapped_column(String(64))
     base_url: Mapped[str | None] = mapped_column(String(400))

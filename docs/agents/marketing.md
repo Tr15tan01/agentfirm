@@ -79,7 +79,7 @@
 <!-- BEGIN GENERATED: models -->
 - **Capabilities requested from the Model Gateway:** `classify`, `text`, `creative`, `reasoning` (default `text`)
 - **Temperatures:** text 0.6, creative 0.9, reasoning 0.2 · **max output tokens:** 8000
-- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T, Tea-800) — the agent never names a model.
+- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T) — the agent never names a model.
 - **Routing hints:**
   - Prefer models with strong multilingual output for non-English locales.
 <!-- END GENERATED: models -->

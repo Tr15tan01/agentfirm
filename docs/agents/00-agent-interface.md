@@ -291,7 +291,7 @@ Agents only ever request a **capability**: `reasoning`, `text`, `code`, `summari
 `creative`, `vision`, `long_context` or `embeddings`. The Gateway resolves it in this order: agent-version
 route, then organisation route, then platform route (the super-admin screen). It tries the ordered list,
 skips disabled providers, and records the model it actually used in `model.called` (`fallback_index`
-0 = primary). OpenAI, Gemini, GN7T and Tea-800 all sit behind the same adapter interface.
+0 = primary). OpenAI, Gemini and GN7T all sit behind the same adapter interface.
 
 ## 13. Event types
 

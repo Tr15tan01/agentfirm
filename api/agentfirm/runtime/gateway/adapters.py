@@ -3,9 +3,12 @@ ModelRequest/ModelResponse — routing, retries, fallbacks and metering live in 
 
 Assumptions (documented in ADR 0003, verify with each provider):
 * OpenAI: Chat Completions API (`/v1/chat/completions`), JSON-schema structured output.
-* Gemini: `models/{model}:generateContent` with `x-goog-api-key`, JSON mime type.
-* GN7T and Tea-800: OpenAI-compatible `/chat/completions` endpoints at the provider's
-  configured `base_url` (contract to be confirmed — risk R-1/R-2).
+* Gemini: `models/{model}:generateContent` with `x-goog-api-key`, JSON mime type. Gemini 3.5+ models
+  reject `temperature`/`top_p`/`top_k` and prefilled model turns, so those are never sent to them.
+* GN7T: OpenAI-compatible chat completions at `{base_url}/chat/completions`, where the admin sets
+  `base_url` to `https://<host>/api/v1/openai/v1`. GN7T refuses every `response_format` other than
+  `text`, so JSON is requested only through the system prompt (verified against GN7T's
+  docs/inference.md, not the earlier ADR assumption).
 """
 
 from __future__ import annotations
@@ -35,8 +38,16 @@ def _schema_instruction(schema: dict[str, Any]) -> str:
     return "Respond with a single JSON object that validates against this JSON Schema. No prose.\n" + json.dumps(schema)
 
 
+#: Gemini models that reject sampling parameters (see module docstring). Matched as prefixes.
+GEMINI_NO_SAMPLING = ("gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash")
+
+
 class OpenAICompatible:
-    """OpenAI Chat Completions — also used for OpenAI-compatible self-hosted/in-house servers."""
+    """OpenAI Chat Completions, also used for GN7T and other OpenAI-compatible servers.
+
+    `native_json_schema`: send OpenAI's json_schema response_format. Servers that refuse any
+    response_format (GN7T) get the schema in the system prompt instead.
+    """
 
     def __init__(self, provider: str, default_base_url: str | None, *, native_json_schema: bool, max_tokens_param: str) -> None:
         self.provider = provider
@@ -59,7 +70,6 @@ class OpenAICompatible:
                     "json_schema": {"name": req.task.replace(".", "_")[:60], "schema": req.json_schema, "strict": False},
                 }
             else:
-                body["response_format"] = {"type": "json_object"}
                 body["messages"] = [*messages, {"role": "system", "content": _schema_instruction(req.json_schema)}]
         headers = {"authorization": f"Bearer {api_key}"} if api_key else {}
         resp = await client.post(f"{url}/chat/completions", json=body, headers=headers)
@@ -96,6 +106,11 @@ class Gemini:
         body: dict[str, Any] = {"contents": contents, "generationConfig": cfg}
         if system:
             body["systemInstruction"] = {"parts": [{"text": system}]}
+        if model.startswith(GEMINI_NO_SAMPLING):
+            cfg.pop("temperature", None)
+        if contents and contents[-1]["role"] == "model":
+            # These models reject a conversation that ends with a model turn; ask for the next step.
+            contents.append({"role": "user", "parts": [{"text": "Continue."}]})
         base = (base_url or self.default_base_url).rstrip("/")
         resp = await client.post(f"{base}/models/{model}:generateContent", json=body, headers={"x-goog-api-key": api_key})
         _raise_for(resp, "gemini")
@@ -114,5 +129,4 @@ ADAPTERS: dict[str, Adapter] = {
     "openai": OpenAICompatible("openai", "https://api.openai.com/v1", native_json_schema=True, max_tokens_param="max_completion_tokens"),
     "gemini": Gemini(),
     "gn7t": OpenAICompatible("gn7t", None, native_json_schema=False, max_tokens_param="max_tokens"),
-    "tea800": OpenAICompatible("tea800", None, native_json_schema=False, max_tokens_param="max_tokens"),
 }

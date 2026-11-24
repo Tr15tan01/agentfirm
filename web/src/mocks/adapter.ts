@@ -3,7 +3,7 @@
  * simulated streaming so every Phase-2 screen exercises production code paths.
  */
 import type { AgentFirmApi, ReplyChunk } from "@/lib/api/contracts";
-import type { AgentProfile, ApprovalRequest, Connection, Idea, KnowledgeDoc, MemoryEntry, UsageRange, UsageReport, TaskRunSummary } from "@/lib/types";
+import type { AgentProfile, ApprovalRequest, Connection, Idea, KnowledgeDoc, MemoryEntry, ProviderKey, UsageRange, UsageReport, TaskRunSummary } from "@/lib/types";
 import { DEMO_AGENTS, DEMO_PROVIDERS, DEMO_ROUTES } from "./demo-data";
 import {
   CONVERSATIONS,
@@ -55,15 +55,15 @@ function usageReport(range: UsageRange): UsageReport {
       { agent: "assistant", requests: r(259), tokens: Math.round(tokens * 0.04), credits: Math.round(credits * 0.03), successRate: 0.93 },
     ],
     byModel: [
-      { model: "gemini-2.5-pro", provider: "gemini", capability: "reasoning", requests: r(1310), tokensIn: Math.round(tokens * 0.24), tokensOut: Math.round(tokens * 0.06), costUsd: 0 },
+      { model: "gemini-3.8-flash", provider: "gemini", capability: "reasoning", requests: r(1310), tokensIn: Math.round(tokens * 0.24), tokensOut: Math.round(tokens * 0.06), costUsd: 0 },
       { model: "gpt-5", provider: "openai", capability: "code", requests: r(980), tokensIn: Math.round(tokens * 0.18), tokensOut: Math.round(tokens * 0.07), costUsd: 0 },
       { model: "gpt-5-mini", provider: "openai", capability: "text", requests: r(1450), tokensIn: Math.round(tokens * 0.12), tokensOut: Math.round(tokens * 0.05), costUsd: 0 },
-      { model: "gemini-2.5-flash", provider: "gemini", capability: "creative", requests: r(690), tokensIn: Math.round(tokens * 0.08), tokensOut: Math.round(tokens * 0.04), costUsd: 0 },
+      { model: "gemini-3.5-flash-lite", provider: "gemini", capability: "creative", requests: r(690), tokensIn: Math.round(tokens * 0.08), tokensOut: Math.round(tokens * 0.04), costUsd: 0 },
       { model: "gn7t-core", provider: "gn7t", capability: "summarize", requests: r(2120), tokensIn: Math.round(tokens * 0.11), tokensOut: Math.round(tokens * 0.02), costUsd: 0 },
       { model: "text-embedding-3-large", provider: "openai", capability: "embeddings", requests: r(3400), tokensIn: Math.round(tokens * 0.03), tokensOut: 0, costUsd: 0 },
     ].map((m) => {
       const price: Record<string, [number, number]> = {
-        "gemini-2.5-pro": [1.25, 10], "gpt-5": [1.25, 10], "gpt-5-mini": [0.25, 2], "gemini-2.5-flash": [0.3, 2.5], "gn7t-core": [0, 0], "text-embedding-3-large": [0.13, 0],
+        "gemini-3.8-flash": [1.25, 10], "gpt-5": [1.25, 10], "gpt-5-mini": [0.25, 2], "gemini-3.5-flash-lite": [0.3, 2.5], "gn7t-core": [0, 0], "text-embedding-3-large": [0.13, 0],
       };
       const [pi, po] = price[m.model];
       return { ...m, provider: m.provider as UsageReport["byModel"][number]["provider"], capability: m.capability as UsageReport["byModel"][number]["capability"], costUsd: Math.round(((m.tokensIn / 1e6) * pi + (m.tokensOut / 1e6) * po) * 100) / 100 };
@@ -166,7 +166,7 @@ export const mockApi: AgentFirmApi = {
         await sleep(24 + Math.random() * 30, signal);
         yield { type: "delta", text: t };
       }
-      const model: Record<string, string> = { research: "gemini-2.5-pro · reasoning", engineer: "gpt-5 · code", creative: "gemini-2.5-flash · creative" };
+      const model: Record<string, string> = { research: "gemini-3.8-flash · reasoning", engineer: "gpt-5 · code", creative: "gemini-3.5-flash-lite · creative" };
       yield { type: "done", model: model[agent] ?? "gpt-5-mini · text", executionId: `exe_demo_${Math.random().toString(36).slice(2, 8)}` };
     },
   },
@@ -267,13 +267,20 @@ export const mockApi: AgentFirmApi = {
 
   admin: {
     routing: async () => ({
-      providers: DEMO_PROVIDERS.map((p) => ({ ...p, id: p.key, enabled: p.key !== "tea800" })),
+      providers: DEMO_PROVIDERS.map((p) => ({ ...p, id: p.key, enabled: true })),
       routes: DEMO_ROUTES.map((r) => ({ ...r })),
     }),
     saveRoute: async () => {
       await sleep(250);
     },
     updateProvider: async () => {
+      await sleep(150);
+    },
+    importModels: async (providerId) => {
+      await sleep(400);
+      return { provider: providerId as ProviderKey, found: 2, added: ["demo-new-model"], alreadyPresent: 1, note: "New models are created disabled. Review capabilities and prices, then enable them." };
+    },
+    updateModel: async () => {
       await sleep(150);
     },
     setCredential: async (_id, key) => {

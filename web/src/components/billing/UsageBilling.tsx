@@ -53,7 +53,6 @@ const PROVIDER_NAME = {
   openai: "OpenAI",
   gemini: "Gemini",
   gn7t: "GN7T",
-  tea800: "Tea-800",
 } as const;
 
 function Bar({

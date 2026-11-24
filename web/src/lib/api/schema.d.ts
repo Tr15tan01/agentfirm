@@ -1002,6 +1002,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/providers/{provider_id}/import-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Models
+         * @description Pull the provider's model list (new models are created disabled for review).
+         */
+        post: operations["import_models_v1_admin_providers__provider_id__import_models_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/models/{model_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Model */
+        patch: operations["patch_model_v1_admin_models__model_id__patch"];
+        trace?: never;
+    };
     "/v1/admin/routes": {
         parameters: {
             query?: never;
@@ -1974,6 +2011,22 @@ export interface components {
             /** Tags */
             tags?: string[] | null;
         };
+        /** ImportResult */
+        ImportResult: {
+            /** Provider */
+            provider: string;
+            /** Found */
+            found: number;
+            /** Added */
+            added: string[];
+            /** Already Present */
+            already_present: number;
+            /**
+             * Note
+             * @default New models are created disabled. Review capabilities and prices, then enable them.
+             */
+            note: string;
+        };
         /** InvitationOut */
         InvitationOut: {
             /**
@@ -2206,6 +2259,22 @@ export interface components {
             price_out_per_1m: string | null;
             /** Enabled */
             enabled: boolean;
+        };
+        /**
+         * ModelPatch
+         * @description Super-admin review of a model: enable it, rename it, set its capabilities or prices.
+         */
+        ModelPatch: {
+            /** Label */
+            label?: string | null;
+            /** Capabilities */
+            capabilities?: string[] | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Price In Per 1M */
+            price_in_per_1m?: number | string | null;
+            /** Price Out Per 1M */
+            price_out_per_1m?: number | string | null;
         };
         /** ModelUsage */
         ModelUsage: {
@@ -4639,6 +4708,72 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_models_v1_admin_providers__provider_id__import_models_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_model_v1_admin_models__model_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

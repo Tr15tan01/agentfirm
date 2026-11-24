@@ -84,7 +84,7 @@
 <!-- BEGIN GENERATED: models -->
 - **Capabilities requested from the Model Gateway:** `classify`, `reasoning`, `long_context`, `summarize`, `embeddings` (default `reasoning`)
 - **Temperatures:** reasoning 0.2, long_context 0.1, summarize 0.3 · **max output tokens:** 12000
-- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T, Tea-800) — the agent never names a model.
+- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T) — the agent never names a model.
 - **Routing hints:**
   - Prefer long-context models for extraction from large documents.
   - Prefer models with zero-data-retention for confidential workspace files.

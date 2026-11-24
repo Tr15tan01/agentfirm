@@ -73,5 +73,5 @@ The engine commits the terminal status a moment before its final `execution.stat
 
 ## Assumptions to confirm
 - **GN7T API (R-1):** `GET /v1/datasets` and `POST /v1/query {query, read_only, max_rows}` returning `{columns, rows}`, with Bearer auth.
-- **GN7T and Tea-800 as model providers (R-2):** OpenAI-compatible `/chat/completions` at an admin-set base URL.
+- **GN7T as a model provider (R-2):** OpenAI-compatible `/chat/completions` at an admin-set base URL. Tea-800 was dropped later.
 - **Search-backed listings:** jobs and places come from web search in live mode, since no listing API was specified.

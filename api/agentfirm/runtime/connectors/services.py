@@ -15,7 +15,7 @@ import re
 import smtplib
 import ssl
 from email.message import EmailMessage
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from agentfirm.agents.contracts import ErrorCode
 
@@ -42,14 +42,16 @@ def assert_read_only(query: str) -> str:
     return q
 
 
+def _gn7t_live_unavailable(operation: str) -> NoReturn:
+    # GN7T's documented API offers chat completions and model listing only (no query or dataset route).
+    # Fail clearly instead of calling a route that does not exist; fixture mode is unaffected.
+    raise StepError(ErrorCode.TOOL_ERROR, f"GN7T: live {operation} is not available. GN7T has no query endpoint yet, so BI data access is disabled in live mode.")
+
+
 async def gn7t_datasets(ctx: ExecutionContext) -> list[dict[str, Any]]:
     if fixture_mode():
         return [{"name": n, "columns": list(rows[0]) if rows else [], "rows": len(rows), "fixture": True} for n, rows in fx.WORLD.datasets.items()]
-    conn = await load(ctx, "gn7t")
-    resp = await request("GET", f"{conn.config['base_url']}/v1/datasets", name=conn.name, headers={"authorization": f"Bearer {conn.secret}"})
-    if resp.status_code >= 300:
-        raise http_error(conn.name, resp)
-    return resp.json()
+    _gn7t_live_unavailable("dataset listing")
 
 
 async def gn7t_query(ctx: ExecutionContext, query: str, max_rows: int) -> dict[str, Any]:
@@ -62,22 +64,7 @@ async def gn7t_query(ctx: ExecutionContext, query: str, max_rows: int) -> dict[s
             raise StepError(ErrorCode.TOOL_ERROR, f"GN7T: unknown dataset {name!r}. Available: {sorted(fx.WORLD.datasets)}")
         rows = fx.WORLD.datasets[name][:max_rows]
         return {"dataset": name, "columns": list(rows[0]) if rows else [], "rows": rows, "row_count": len(rows), "query": q, "fixture": True}
-    conn = await load(ctx, "gn7t")
-    resp = await request(
-        "POST",
-        f"{conn.config['base_url']}/v1/query",
-        name=conn.name,
-        timeout_s=55,
-        headers={"authorization": f"Bearer {conn.secret}"},
-        json={"query": q, "read_only": True, "max_rows": max_rows},
-    )
-    if resp.status_code >= 300:
-        raise http_error(conn.name, resp)
-    body = resp.json()
-    cols = body.get("columns") or []
-    rows = [dict(zip(cols, r, strict=False)) for r in (body.get("rows") or [])[:max_rows]]
-    m = FROM.search(q)
-    return {"dataset": m.group(1) if m else "query", "columns": cols, "rows": rows, "row_count": len(rows), "query": q}
+    _gn7t_live_unavailable("queries")
 
 
 def _send_smtp(cfg: dict[str, Any], password: str, msg: EmailMessage) -> None:

@@ -76,7 +76,7 @@ Live mode reads data in the browser through the BFF (`/api/...`), because the re
   recent activity.
 - **Super-admin › Models & Routing** (`/admin/models`): choose the primary model and an ordered
   fallback chain **per task type** (reasoning, text, code, summarise, classify, creative, vision,
-  long context, embeddings) across OpenAI, Gemini, GN7T and Tea-800. It warns about degraded or
+  long context, embeddings) across OpenAI, Gemini and GN7T. It warns about degraded or
   disabled providers and missing fallbacks.
 - Later-phase routes have designed placeholder screens, so navigation never 404s.
 
@@ -135,7 +135,7 @@ Also new: a **New Task** dialog everywhere (⌘/Ctrl+Enter), toast notifications
 ## Phase 4a — what's included
 
 - **Model Gateway** with adapters for OpenAI (Chat Completions, native JSON schema), Gemini (`generateContent`),
-  GN7T and Tea-800 (assumed OpenAI-compatible, with an admin-set `base_url`). It provides per-task routing
+  GN7T (OpenAI-compatible, at an admin-set `base_url`; it accepts only plain-text responses, so JSON schemas go in the prompt). It provides per-task routing
   (agent version → org → platform), retries, fallback to the next model, a per-provider circuit breaker, cost tracking and credits.
 - **Tool Registry runtime** is the single enforcement point. The checks run in this order: grant → the step's declared tools →
   user permission → call cap → approval → budget → idempotent replay → timeout. Web fetch is SSRF-guarded
@@ -158,7 +158,7 @@ Also new: a **New Task** dialog everywhere (⌘/Ctrl+Enter), toast notifications
   logs and progress are **derived from persisted events**, never estimated. New **Knowledge** (upload/paste
   documents, organisation memories) and **Integrations** screens. The idea board saves moves and rejections.
 - **Super-admin model routing:** choose provider and model per capability (reasoning, text, …) across OpenAI,
-  Gemini, GN7T and Tea-800; set keys and in-house base URLs; changes persist and are audit-logged.
+  Gemini and GN7T; set keys and base URLs. Super-admins can import a provider's model list (imported models start disabled until reviewed). Changes persist and are audit-logged.
 - **Connectors:** GitHub (allow-listed repos, `agent/*` branches only), signed webhooks (bridge for social, ads,
   calendar, payments, purchases and deploys via n8n/Zapier/Make), SMTP (TLS only), GN7T data (read-only SQL),
   OSV dependency audit. Secrets are encrypted per connection; SSRF checks run on save and on every call.

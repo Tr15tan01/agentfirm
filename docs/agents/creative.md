@@ -79,7 +79,7 @@
 <!-- BEGIN GENERATED: models -->
 - **Capabilities requested from the Model Gateway:** `creative`, `reasoning`, `classify` (default `creative`)
 - **Temperatures:** creative 0.95, reasoning 0.3, classify 0.0 · **max output tokens:** 6000
-- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T, Tea-800) — the agent never names a model.
+- **Routing:** super-admins choose provider/model per capability (OpenAI, Gemini, GN7T) — the agent never names a model.
 - **Routing hints:**
   - High-temperature creative model for divergence; low-temperature reasoning model for evaluation.
 <!-- END GENERATED: models -->

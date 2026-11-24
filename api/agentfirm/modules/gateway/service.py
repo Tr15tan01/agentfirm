@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+import httpx
 from pydantic import BaseModel, Field, HttpUrl
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +21,8 @@ from agentfirm.core.deps import Principal
 from agentfirm.core.errors import NotFound, Unprocessable
 from agentfirm.modules.audit.service import record
 from agentfirm.modules.identity.models import Organization
+from agentfirm.runtime.gateway import catalog
+from agentfirm.runtime.gateway.types import ProviderError
 
 from .models import CAPABILITIES, Model, ModelProvider, ModelRoute, ProviderCredential
 
@@ -64,6 +67,24 @@ class ModelIn(BaseModel):
     capabilities: list[str] = Field(min_length=1)
     price_in_per_1m: Decimal | None = Field(default=None, ge=0)
     price_out_per_1m: Decimal | None = Field(default=None, ge=0)
+
+
+class ModelPatch(BaseModel):
+    """Super-admin review of a model: enable it, rename it, set its capabilities or prices."""
+
+    label: str | None = Field(default=None, min_length=1, max_length=120)
+    capabilities: list[str] | None = Field(default=None, min_length=1)
+    enabled: bool | None = None
+    price_in_per_1m: Decimal | None = Field(default=None, ge=0)
+    price_out_per_1m: Decimal | None = Field(default=None, ge=0)
+
+
+class ImportResult(BaseModel):
+    provider: str
+    found: int
+    added: list[str]
+    already_present: int
+    note: str = "New models are created disabled. Review capabilities and prices, then enable them."
 
 
 class RouteIn(BaseModel):
@@ -233,6 +254,66 @@ async def create_model(session: AsyncSession, admin: Principal, body: ModelIn) -
     await session.flush()
     await record(session, action="gateway.model_created", target_type="model", target_id=m.id, actor=admin, after=body.model_dump(mode="json"), platform=True)
     return _model_out(m, p.key)
+
+
+async def patch_model(session: AsyncSession, admin: Principal, model_id: UUID, body: ModelPatch) -> ModelOut:
+    row = (await session.execute(select(Model, ModelProvider.key).join(ModelProvider, ModelProvider.id == Model.provider_id).where(Model.id == model_id))).one_or_none()
+    if row is None:
+        raise NotFound("Model not found.")
+    m, provider_key = row
+    changes = body.model_dump(exclude_unset=True)
+    if "capabilities" in changes:
+        bad = set(changes["capabilities"]) - set(CAPABILITIES)
+        if bad:
+            raise Unprocessable(f"Unknown capabilities: {', '.join(sorted(bad))}")
+        m.capabilities = sorted(set(changes["capabilities"]))
+    for field_name in ("label", "enabled", "price_in_per_1m", "price_out_per_1m"):
+        if field_name in changes:
+            setattr(m, field_name, changes[field_name])
+    await session.flush()
+    await record(session, action="gateway.model_updated", target_type="model", target_id=m.id, actor=admin, after=body.model_dump(mode="json", exclude_unset=True), platform=True)
+    return _model_out(m, provider_key)
+
+
+async def import_models(session: AsyncSession, admin: Principal, provider_id: UUID) -> ImportResult:
+    """Fetch the provider's own model list and add the models we don't have yet (disabled)."""
+    p = (await session.execute(select(ModelProvider).where(ModelProvider.id == provider_id))).scalar_one_or_none()
+    if p is None:
+        raise NotFound("Provider not found.")
+    if not p.enabled:
+        raise Unprocessable("Enable the provider before importing its models.")
+    api_key = await decrypt_credential(session, p.key)
+    if api_key is None and p.key != "gn7t":
+        raise Unprocessable("Save an API key for this provider first.")
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            fetched = await catalog.fetch_models(client, p.key, api_key, p.base_url)
+    except ProviderError as exc:
+        raise Unprocessable(str(exc)[:300]) from exc
+    except httpx.HTTPError as exc:
+        raise Unprocessable(f"{p.key}: could not reach the provider ({type(exc).__name__}).") from exc
+
+    existing = {n for (n,) in (await session.execute(select(Model.name).where(Model.provider_id == p.id))).all()}
+    added: list[str] = []
+    already = 0
+    for item in fetched:
+        if item.name in existing:
+            already += 1
+            continue
+        session.add(Model(provider_id=p.id, name=item.name, label=item.name, capabilities=sorted(set(item.capabilities)), enabled=False))
+        existing.add(item.name)
+        added.append(item.name)
+    await session.flush()
+    await record(
+        session,
+        action="gateway.models_imported",
+        target_type="provider",
+        target_id=p.id,
+        actor=admin,
+        after={"provider": p.key, "found": len(fetched), "added": added},
+        platform=True,
+    )
+    return ImportResult(provider=p.key, found=len(fetched), added=added, already_present=already)
 
 
 # ── Routing ──────────────────────────────────────────────────────────────────

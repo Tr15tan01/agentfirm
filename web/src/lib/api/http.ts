@@ -455,7 +455,7 @@ export const httpApi: AgentFirmApi = {
           name: p.name,
           kind: p.kind,
           enabled: p.enabled,
-          // External APIs need a key; in-house services (GN7T, Tea-800) need a base URL.
+          // External APIs need a key; in-house services (GN7T) need a base URL.
           status: p.credential_last4 || (p.kind !== "External API" && p.base_url) ? "configured" : "not_configured",
           credentialHint: p.credential_last4 ? `••••${p.credential_last4}` : null,
           baseUrl: p.base_url,
@@ -478,6 +478,13 @@ export const httpApi: AgentFirmApi = {
     setCredential: async (id, apiKey) => {
       const p = await call<S["ProviderOut"]>("PUT", `/admin/providers/${id}/credential`, { api_key: apiKey });
       return { last4: p.credential_last4 ?? "" };
+    },
+    importModels: async (id) => {
+      const r = await call<{ provider: string; found: number; added: string[]; already_present: number; note: string }>("POST", `/admin/providers/${id}/import-models`);
+      return { provider: r.provider as ProviderKey, found: r.found, added: r.added, alreadyPresent: r.already_present, note: r.note };
+    },
+    updateModel: async (id, patch) => {
+      await call("PATCH", `/admin/models/${id}`, { enabled: patch.enabled, label: patch.label, capabilities: patch.capabilities, price_in_per_1m: patch.priceIn, price_out_per_1m: patch.priceOut });
     },
   },
   usage: { report: async (range) => toUsage(await get<S["UsageReport"]>(`/usage?range=${range}`), range) },

@@ -83,7 +83,7 @@ export interface TimelineEvent {
   atMs: number;
 }
 
-export type ProviderKey = "openai" | "gemini" | "gn7t" | "tea800";
+export type ProviderKey = "openai" | "gemini" | "gn7t";
 
 export type CapabilityKey =
   | "reasoning"
@@ -361,7 +361,7 @@ export interface RoutingProvider {
   /** "configured" = a key is stored; health is not measured yet, so we never claim "healthy" in live mode. */
   status: "healthy" | "degraded" | "configured" | "not_configured";
   credentialHint: string | null;
-  /** In-house services (GN7T, Tea-800) are reached at an admin-set base URL. */
+  /** In-house services (GN7T) are reached at an admin-set base URL. */
   baseUrl?: string | null;
   latencyMs: number | null;
   models: { id: string; label: string; capabilities: CapabilityKey[]; priceIn: number | null; priceOut: number | null }[];
@@ -372,6 +372,15 @@ export interface RoutingRoute {
   primary: string;
   fallbacks: string[];
   temperature: number;
+}
+
+/** Result of asking a provider for its own model list. Imported models start disabled. */
+export interface ModelImportResult {
+  provider: ProviderKey;
+  found: number;
+  added: string[];
+  alreadyPresent: number;
+  note: string;
 }
 
 export interface RoutingData {

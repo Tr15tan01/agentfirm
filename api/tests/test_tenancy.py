@@ -24,7 +24,13 @@ async def world(client, owner_db):
     members = (await client.get("/v1/members", headers=a.h)).json()
     sessions = (await client.get("/v1/auth/sessions", headers=a.h)).json()
     doc = (await client.post("/v1/knowledge/documents", headers=a.h, json={"title": "Secret doc", "content": "Secret pricing notes."})).json()
-    conn = (await client.post("/v1/integrations/connections", headers=a.h, json={"kind": "webhook", "name": "n8n", "config": {"url": "https://hooks.example.com/af", "actions": ["social.publish"]}})).json()
+    conn = (
+        await client.post(
+            "/v1/integrations/connections",
+            headers=a.h,
+            json={"kind": "webhook", "name": "n8n", "config": {"url": "https://hooks.example.com/af", "actions": ["social.publish"]}},
+        )
+    ).json()
     idea_id = await owner_db.fetchval(
         "INSERT INTO ideas (id, org_id, title, summary, approach) VALUES (gen_random_uuid(), $1, 'Secret idea', 'x', 'divergent') RETURNING id::text", a.org_id
     )
@@ -69,6 +75,8 @@ EXEMPT = {
     ("PUT", "/v1/memories/{key}"): "key is a name, not a row id; always writes the caller's org (test_runtime_api)",
     ("PATCH", "/v1/admin/providers/{provider_id}"): "super-admin only — covered in test_rbac",
     ("PUT", "/v1/admin/providers/{provider_id}/credential"): "super-admin only",
+    ("POST", "/v1/admin/providers/{provider_id}/import-models"): "super-admin only — covered in test_model_catalog",
+    ("PATCH", "/v1/admin/models/{model_id}"): "super-admin only — covered in test_model_catalog",
     ("PUT", "/v1/admin/routes/{capability}"): "super-admin only",
     ("GET", "/v1/admin/routes/{capability}/resolve"): "super-admin only",
     ("GET", "/v1/billing/invoices/{invoice_id}/pdf"): "cross-tenant 404 covered in test_billing (needs a Paddle-created invoice)",
@@ -104,7 +112,18 @@ async def test_other_org_gets_404(client, world, route):
 
 async def test_lists_never_include_other_org_data(client, world):
     b = world["b"]
-    for path in ("/v1/projects", "/v1/conversations", "/v1/tasks", "/v1/approvals", "/v1/members", "/v1/audit-logs", "/v1/knowledge/documents", "/v1/ideas", "/v1/memories", "/v1/integrations/connections"):
+    for path in (
+        "/v1/projects",
+        "/v1/conversations",
+        "/v1/tasks",
+        "/v1/approvals",
+        "/v1/members",
+        "/v1/audit-logs",
+        "/v1/knowledge/documents",
+        "/v1/ideas",
+        "/v1/memories",
+        "/v1/integrations/connections",
+    ):
         r = await client.get(path, headers=b.h)
         assert r.status_code == 200, path
         text = r.text
