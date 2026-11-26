@@ -77,13 +77,22 @@ async def test_artifact_download_is_org_scoped_and_sandboxed(client, owner_db):
     t = (await client.post("/v1/tasks", headers=a.h, json={"objective": "Ideas", "agents": ["creative"]})).json()
     ex_id = uuid.UUID(t["executions"][0]["id"])
     ids = {}
-    for name, kind, data in (("chart.svg", "svg", b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'), ("report.md", "md", b"# Report")):
+    for name, kind, data in (
+        ("chart.svg", "svg", b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+        ("report.md", "md", b"# Report"),
+    ):
         key = object_key(uuid.UUID(a.org_id), ex_id, name)
         await get_store().put(key, data, "application/octet-stream")
         aid = uuid.uuid4()
         await owner_db.execute(
             "INSERT INTO artifacts (id, org_id, execution_id, name, kind, size_bytes, storage_key) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-            aid, uuid.UUID(a.org_id), ex_id, name, kind, len(data), key,
+            aid,
+            uuid.UUID(a.org_id),
+            ex_id,
+            name,
+            kind,
+            len(data),
+            key,
         )
         ids[kind] = str(aid)
     svg = await client.get(f"/v1/artifacts/{ids['svg']}", headers=a.h)
@@ -103,7 +112,12 @@ async def test_concurrent_signups_with_the_same_workspace_name(client):
     async def signup(i: int):  # type: ignore[no-untyped-def]
         return await client.post(
             "/v1/auth/register",
-            json={"email": f"race{i}.{uuid.uuid4().hex[:6]}@example.com", "name": "Race", "password": "Correct-Horse-9-battery", "organization_name": "Same Name Co"},
+            json={
+                "email": f"race{i}.{uuid.uuid4().hex[:6]}@example.com",
+                "name": "Race",
+                "password": "Correct-Horse-9-battery",
+                "organization_name": "Same Name Co",
+            },
             headers={"X-Forwarded-For": f"10.9.0.{i}"},
         )
 

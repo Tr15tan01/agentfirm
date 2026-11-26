@@ -99,8 +99,12 @@ class ModelGateway:
                             raise ProviderError(f"{model.provider}: simulated outage", retriable=False, status=503)
                         resp = await simulated.complete(request, latency_ms=settings.simulated_latency_ms)
                     else:
+                        api_key = await self._api_key(model.provider)
+                        if api_key is None:  # enabled but never configured: say so instead of a confusing 401
+                            errors.append(f"{model.provider}: no API key saved (Admin → Models → Configure), or switch the provider off")
+                            break
                         resp = await ADAPTERS[model.provider].complete(
-                            self.http, request, model=model.name, api_key=await self._api_key(model.provider), base_url=await self._base_url(model.provider)
+                            self.http, request, model=model.name, api_key=api_key, base_url=await self._base_url(model.provider)
                         )
                     self._record(model.provider, True)
                     resp.provider, resp.model, resp.fallback_index = model.provider, model.name, index

@@ -22,6 +22,7 @@ from agentfirm.core.errors import NotFound, Unprocessable
 from agentfirm.modules.audit.service import record
 from agentfirm.modules.identity.models import Organization
 from agentfirm.runtime.gateway import catalog
+from agentfirm.runtime.gateway.adapters import gn7t_api_root
 from agentfirm.runtime.gateway.types import ProviderError
 
 from .models import CAPABILITIES, Model, ModelProvider, ModelRoute, ProviderCredential
@@ -153,7 +154,8 @@ async def patch_provider(session: AsyncSession, admin: Principal, provider_id: U
     if body.enabled is not None:
         p.enabled = body.enabled
     if body.base_url is not None:
-        p.base_url = str(body.base_url)
+        url = str(body.base_url).rstrip("/")
+        p.base_url = gn7t_api_root(url) if p.key == "gn7t" else url  # GN7T: complete /api/v1/openai/v1 if left out
     await record(
         session,
         action="gateway.provider_updated",
@@ -257,7 +259,9 @@ async def create_model(session: AsyncSession, admin: Principal, body: ModelIn) -
 
 
 async def patch_model(session: AsyncSession, admin: Principal, model_id: UUID, body: ModelPatch) -> ModelOut:
-    row = (await session.execute(select(Model, ModelProvider.key).join(ModelProvider, ModelProvider.id == Model.provider_id).where(Model.id == model_id))).one_or_none()
+    row = (
+        await session.execute(select(Model, ModelProvider.key).join(ModelProvider, ModelProvider.id == Model.provider_id).where(Model.id == model_id))
+    ).one_or_none()
     if row is None:
         raise NotFound("Model not found.")
     m, provider_key = row
@@ -271,8 +275,75 @@ async def patch_model(session: AsyncSession, admin: Principal, model_id: UUID, b
         if field_name in changes:
             setattr(m, field_name, changes[field_name])
     await session.flush()
-    await record(session, action="gateway.model_updated", target_type="model", target_id=m.id, actor=admin, after=body.model_dump(mode="json", exclude_unset=True), platform=True)
+    await record(
+        session,
+        action="gateway.model_updated",
+        target_type="model",
+        target_id=m.id,
+        actor=admin,
+        after=body.model_dump(mode="json", exclude_unset=True),
+        platform=True,
+    )
     return _model_out(m, provider_key)
+
+
+class ProviderTestOut(BaseModel):
+    ok: bool
+    provider: str
+    model: str | None = None
+    latency_ms: int | None = None
+    reply: str | None = None
+    error: str | None = None
+
+
+async def test_provider(session: AsyncSession, admin: Principal, provider_id: UUID) -> ProviderTestOut:
+    """Sends one tiny real request through the same adapter the agents use, so an admin finds out
+    here (with a readable reason) instead of in a failed task."""
+    import time
+
+    from agentfirm.runtime.gateway.adapters import ADAPTERS, describe_connect_error
+    from agentfirm.runtime.gateway.types import Message, ModelRequest
+
+    p = (await session.execute(select(ModelProvider).where(ModelProvider.id == provider_id))).scalar_one_or_none()
+    if p is None:
+        raise NotFound("Provider not found.")
+    adapter = ADAPTERS.get(p.key)
+    model = await session.scalar(
+        select(Model.name).where(Model.provider_id == p.id, Model.enabled.is_(True), ~Model.capabilities.contains(["embeddings"])).order_by(Model.name).limit(1)
+    )
+    out = ProviderTestOut(ok=False, provider=p.key, model=model)
+    if adapter is None:
+        out.error = "No adapter for this provider."
+    elif model is None:
+        out.error = "No enabled text model for this provider. Enable one (or import the real model list) first."
+    elif not p.enabled:
+        out.error = "The provider is switched off."
+    else:
+        api_key = await decrypt_credential(session, p.key)
+        if api_key is None:
+            out.error = "No API key saved for this provider."
+        else:
+            req = ModelRequest(task="admin.test", messages=[Message("user", "Reply with the single word: ok")], max_tokens=16, temperature=0)
+            started = time.monotonic()
+            try:
+                async with httpx.AsyncClient(timeout=httpx.Timeout(45, connect=10)) as client:
+                    resp = await adapter.complete(client, req, model=model, api_key=api_key, base_url=p.base_url)
+                out.ok, out.reply = True, (resp.text or "")[:80]
+            except ProviderError as exc:
+                out.error = str(exc)[:300]
+            except httpx.HTTPError as exc:
+                out.error = describe_connect_error(p.key, p.base_url or "", exc)[:300]
+            out.latency_ms = int((time.monotonic() - started) * 1000)
+    await record(
+        session,
+        action="gateway.provider_tested",
+        target_type="model_provider",
+        target_id=p.id,
+        actor=admin,
+        after={"ok": out.ok, "model": model},
+        platform=True,
+    )
+    return out
 
 
 async def import_models(session: AsyncSession, admin: Principal, provider_id: UUID) -> ImportResult:
@@ -283,15 +354,18 @@ async def import_models(session: AsyncSession, admin: Principal, provider_id: UU
     if not p.enabled:
         raise Unprocessable("Enable the provider before importing its models.")
     api_key = await decrypt_credential(session, p.key)
-    if api_key is None and p.key != "gn7t":
-        raise Unprocessable("Save an API key for this provider first.")
+    if api_key is None:
+        raise Unprocessable(
+            "Save an API key for this provider first."
+            + (" GN7T needs one too: create it under API Keys in GN7T (gn7t_<id>_<secret>)." if p.key == "gn7t" else "")
+        )
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             fetched = await catalog.fetch_models(client, p.key, api_key, p.base_url)
     except ProviderError as exc:
         raise Unprocessable(str(exc)[:300]) from exc
-    except httpx.HTTPError as exc:
-        raise Unprocessable(f"{p.key}: could not reach the provider ({type(exc).__name__}).") from exc
+    except httpx.HTTPError as exc:  # not reached for most errors: the catalog already wraps them
+        raise Unprocessable(f"{p.key}: could not reach the provider ({type(exc).__name__}: {exc}).") from exc
 
     existing = {n for (n,) in (await session.execute(select(Model.name).where(Model.provider_id == p.id))).all()}
     added: list[str] = []

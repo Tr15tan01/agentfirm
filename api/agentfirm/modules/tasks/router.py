@@ -83,7 +83,9 @@ async def stream(
 
 
 @router.post("/{task_id}/reply", response_model=TaskOut)
-async def reply(task_id: UUID, body: service.ReplyIn, session: DbSession, background: BackgroundTasks, principal: Principal = require(Perm.TASKS_CREATE)) -> TaskOut:
+async def reply(
+    task_id: UUID, body: service.ReplyIn, session: DbSession, background: BackgroundTasks, principal: Principal = require(Perm.TASKS_CREATE)
+) -> TaskOut:
     """Answer the task's question(s): starts a new attempt that continues from where it stopped."""
     out = await service.reply(session, principal, task_id, body)
     background.add_task(notify_task, task_id)
@@ -91,8 +93,22 @@ async def reply(task_id: UUID, body: service.ReplyIn, session: DbSession, backgr
     return out
 
 
+@router.post("/stop", response_model=service.StopOut)
+async def stop_all(body: service.StopIn, session: DbSession, principal: Principal = require(Perm.TASKS_CONTROL)) -> service.StopOut:
+    """Stop every running/queued task in this workspace, or only one agent's (`{"agent": "research"}`)."""
+    return await service.stop_executions(session, principal, body.model_copy(update={"org_id": None}), platform=False)
+
+
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task(task_id: UUID, session: DbSession, principal: Principal = require(Perm.TASKS_CONTROL)) -> None:
+    """Stop and delete a task (and its history and files). Cannot be undone."""
+    await service.delete_task(session, principal, task_id)
+
+
 @router.post("/{task_id}/{action}", response_model=TaskOut)
-async def control(task_id: UUID, action: Action, session: DbSession, background: BackgroundTasks, principal: Principal = require(Perm.TASKS_CONTROL)) -> TaskOut:
+async def control(
+    task_id: UUID, action: Action, session: DbSession, background: BackgroundTasks, principal: Principal = require(Perm.TASKS_CONTROL)
+) -> TaskOut:
     out = await service.control(session, principal, task_id, action)
     background.add_task(notify_task, task_id)
     if action in ("resume", "retry"):
@@ -122,7 +138,13 @@ artifacts_router = APIRouter(prefix="/artifacts", tags=["tasks"])
 
 #: Kinds shown inline in the browser; everything else downloads as an attachment.
 INLINE = {"svg": "image/svg+xml", "png": "image/png", "jpg": "image/jpeg"}
-TEXT = {"md": "text/markdown; charset=utf-8", "csv": "text/csv; charset=utf-8", "json": "application/json", "diff": "text/x-diff; charset=utf-8", "txt": "text/plain; charset=utf-8"}
+TEXT = {
+    "md": "text/markdown; charset=utf-8",
+    "csv": "text/csv; charset=utf-8",
+    "json": "application/json",
+    "diff": "text/x-diff; charset=utf-8",
+    "txt": "text/plain; charset=utf-8",
+}
 
 
 @artifacts_router.get("/{artifact_id}", response_class=Response, responses={200: {"content": {"application/octet-stream": {}}}})

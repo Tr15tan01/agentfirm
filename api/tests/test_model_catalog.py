@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 
+import httpx
 import pytest
 import respx
 
@@ -27,6 +28,8 @@ async def _provider_id(client, admin, key):
 async def _enable_gn7t(client, admin):
     pid = await _provider_id(client, admin, "gn7t")
     r = await client.patch(f"/v1/admin/providers/{pid}", headers=admin.h, json={"enabled": True, "base_url": GN7T_BASE})
+    assert r.status_code == 200, r.text
+    r = await client.put(f"/v1/admin/providers/{pid}/credential", headers=admin.h, json={"api_key": "gn7t_abc_secret1234"})
     assert r.status_code == 200, r.text
     return pid
 
@@ -90,3 +93,44 @@ async def test_migration_removed_gemini2_and_tea800(client, admin):
     assert {"gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash"} <= models
     providers = {p["key"] for p in (await client.get("/v1/admin/providers", headers=admin.h)).json()}
     assert "tea800" not in providers
+
+
+async def test_gn7t_base_url_is_completed_to_its_real_path(client, admin):
+    pid = await _provider_id(client, admin, "gn7t")
+    for typed in ("https://gn7t.example.com", "https://gn7t.example.com/", "https://gn7t.example.com/v1", "https://gn7t.example.com/api/v1"):
+        r = await client.patch(f"/v1/admin/providers/{pid}", headers=admin.h, json={"base_url": typed})
+        assert r.json()["base_url"] == "https://gn7t.example.com/api/v1/openai/v1", typed
+    r = await client.patch(f"/v1/admin/providers/{pid}", headers=admin.h, json={"base_url": "https://proxy.example.com/custom/gn7t/v1"})
+    assert r.json()["base_url"] == "https://proxy.example.com/custom/gn7t/v1", "a custom reverse-proxy path is kept"
+
+
+@respx.mock
+async def test_provider_test_button_succeeds_and_explains_failures(client, admin):
+    pid = await _enable_gn7t(client, admin)
+    models = {m["name"]: m for m in (await client.get("/v1/admin/models", headers=admin.h)).json()}
+    mid = models["gn7t-core"]["id"]
+    await client.patch(f"/v1/admin/models/{mid}", headers=admin.h, json={"enabled": True})
+    try:
+        await client.put(f"/v1/admin/providers/{pid}/credential", headers=admin.h, json={"api_key": "gn7t_abc_secret1234"})
+        route = respx.post(f"{GN7T_BASE}/chat/completions").respond(
+            200, json={"choices": [{"message": {"content": "ok"}}], "usage": {"prompt_tokens": 5, "completion_tokens": 1}}
+        )
+        ok = (await client.post(f"/v1/admin/providers/{pid}/test", headers=admin.h)).json()
+        assert ok["ok"] is True and ok["model"] == "gn7t-core" and ok["reply"] == "ok" and ok["latency_ms"] is not None
+        assert route.calls[0].request.headers["authorization"] == "Bearer gn7t_abc_secret1234"
+
+        route.respond(401, json={"error": "bad key"})
+        bad = (await client.post(f"/v1/admin/providers/{pid}/test", headers=admin.h)).json()
+        assert bad["ok"] is False and "gn7t_<id>_<secret>" in bad["error"]
+
+        route.mock(side_effect=httpx.ConnectError("name not resolved"))
+        down = (await client.post(f"/v1/admin/providers/{pid}/test", headers=admin.h)).json()
+        assert down["ok"] is False and "cannot connect" in down["error"]
+    finally:
+        await client.patch(f"/v1/admin/models/{mid}", headers=admin.h, json={"enabled": False})
+
+
+async def test_provider_test_with_no_enabled_model_says_so(client, admin):
+    pid = await _provider_id(client, admin, "gemini")
+    out = (await client.post(f"/v1/admin/providers/{pid}/test", headers=admin.h)).json()
+    assert out["ok"] is False and out["error"]

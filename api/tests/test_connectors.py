@@ -46,7 +46,11 @@ def ctx_for(org_id: str):  # type: ignore[no-untyped-def]
 
 async def test_connection_secrets_are_write_only_and_audited(client, owner_db):
     a = await register(client, org="Conn Co")
-    r = await client.post("/v1/integrations/connections", headers=a.h, json={"kind": "github", "name": "GitHub", "config": {"repositories": ["acme/app"]}, "secret": "ghp_supersecrettoken1234"})
+    r = await client.post(
+        "/v1/integrations/connections",
+        headers=a.h,
+        json={"kind": "github", "name": "GitHub", "config": {"repositories": ["acme/app"]}, "secret": "ghp_supersecrettoken1234"},
+    )
     assert r.status_code == 201, r.text
     body = r.json()
     assert body["secret_last4"] == "1234" and "supersecret" not in r.text
@@ -61,7 +65,11 @@ async def test_connection_secrets_are_write_only_and_audited(client, owner_db):
 
 async def test_webhook_signing_secret_generated_once(client):
     a = await register(client, org="Hook Co")
-    r = await client.post("/v1/integrations/connections", headers=a.h, json={"kind": "webhook", "name": "n8n", "config": {"url": "https://hooks.example.com/af", "actions": ["social.publish"]}})
+    r = await client.post(
+        "/v1/integrations/connections",
+        headers=a.h,
+        json={"kind": "webhook", "name": "n8n", "config": {"url": "https://hooks.example.com/af", "actions": ["social.publish"]}},
+    )
     assert r.status_code == 201
     assert r.json()["signing_secret"].startswith("whsec_")
     assert all(c.get("signing_secret") is None for c in (await client.get("/v1/integrations/connections", headers=a.h)).json())
@@ -91,7 +99,11 @@ async def test_connection_urls_must_be_public(client):
     saved = web.RESOLVER
     web.RESOLVER = lambda h: [(socket.AF_INET, 0, 0, "", ("10.0.0.5", 0))]
     try:
-        r = await client.post("/v1/integrations/connections", headers=a.h, json={"kind": "webhook", "name": "x", "config": {"url": "https://internal.example.com/x", "actions": ["social.publish"]}})
+        r = await client.post(
+            "/v1/integrations/connections",
+            headers=a.h,
+            json={"kind": "webhook", "name": "x", "config": {"url": "https://internal.example.com/x", "actions": ["social.publish"]}},
+        )
     finally:
         web.RESOLVER = saved
     assert r.status_code == 422 and "not allowed" in r.text
@@ -100,7 +112,11 @@ async def test_connection_urls_must_be_public(client):
 async def test_only_admins_manage_connections(client):
     a = await register(client, org="Perm Conn")
     m = await join_as(client, a, "member", name="Mo")
-    r = await client.post("/v1/integrations/connections", headers=m.h, json={"kind": "webhook", "name": "x", "config": {"url": "https://hooks.example.com/x", "actions": ["social.publish"]}})
+    r = await client.post(
+        "/v1/integrations/connections",
+        headers=m.h,
+        json={"kind": "webhook", "name": "x", "config": {"url": "https://hooks.example.com/x", "actions": ["social.publish"]}},
+    )
     assert r.status_code == 403
     assert (await client.get("/v1/integrations/connections", headers=m.h)).status_code == 200
 
@@ -113,7 +129,13 @@ async def test_webhook_is_signed_idempotent_and_never_follows_redirects(client):
     from agentfirm.runtime import connectors
 
     a = await register(client, org="Sign Co")
-    secret = (await client.post("/v1/integrations/connections", headers=a.h, json={"kind": "webhook", "name": "n8n", "config": {"url": "https://hooks.example.com/af", "actions": ["social.publish"]}})).json()["signing_secret"]
+    secret = (
+        await client.post(
+            "/v1/integrations/connections",
+            headers=a.h,
+            json={"kind": "webhook", "name": "n8n", "config": {"url": "https://hooks.example.com/af", "actions": ["social.publish"]}},
+        )
+    ).json()["signing_secret"]
     route = respx.post("https://hooks.example.com/af").respond(200, json={"status": "published", "url": "https://x/1"})
     with live_connectors():
         out = await connectors.webhook(ctx_for(a.org_id), "social.publish", {"text": "Hi"}, "exec:step:social.publish:0")
@@ -141,12 +163,18 @@ async def test_missing_connection_asks_the_user(client):
 
 
 @respx.mock
-@pytest.mark.parametrize(("status", "code", "retriable"), [(401, ErrorCode.PERMISSION_DENIED, False), (503, ErrorCode.TOOL_ERROR, True), (422, ErrorCode.TOOL_ERROR, False)])
+@pytest.mark.parametrize(
+    ("status", "code", "retriable"), [(401, ErrorCode.PERMISSION_DENIED, False), (503, ErrorCode.TOOL_ERROR, True), (422, ErrorCode.TOOL_ERROR, False)]
+)
 async def test_webhook_errors_are_classified(client, status, code, retriable):
     from agentfirm.runtime import connectors
 
     a = await register(client, org=f"Err {status}")
-    await client.post("/v1/integrations/connections", headers=a.h, json={"kind": "webhook", "name": "n8n", "config": {"url": "https://hooks.example.com/af", "actions": ["calendar.read"]}})
+    await client.post(
+        "/v1/integrations/connections",
+        headers=a.h,
+        json={"kind": "webhook", "name": "n8n", "config": {"url": "https://hooks.example.com/af", "actions": ["calendar.read"]}},
+    )
     respx.post("https://hooks.example.com/af").respond(status, text="nope")
     with live_connectors(), pytest.raises(StepError) as e:
         await connectors.webhook(ctx_for(a.org_id), "calendar.read", {}, "k")
@@ -161,7 +189,11 @@ async def test_github_writes_only_agent_branches_of_allowed_repos(client):
     from agentfirm.runtime.connectors import github
 
     a = await register(client, org="Git Co")
-    await client.post("/v1/integrations/connections", headers=a.h, json={"kind": "github", "name": "GitHub", "config": {"repositories": ["acme/app"]}, "secret": "ghp_token_abcd"})
+    await client.post(
+        "/v1/integrations/connections",
+        headers=a.h,
+        json={"kind": "github", "name": "GitHub", "config": {"repositories": ["acme/app"]}, "secret": "ghp_token_abcd"},
+    )
     base = "https://api.github.com/repos/acme/app"
     respx.get(base).respond(200, json={"default_branch": "main"})
     respx.get(f"{base}/branches/agent/fix-1").respond(404, json={"message": "Branch not found"})
@@ -196,7 +228,14 @@ async def test_github_writes_only_agent_branches_of_allowed_repos(client):
 
 @pytest.mark.parametrize(
     "query",
-    ["DELETE FROM payments", "SELECT 1; DROP TABLE x", "WITH x AS (DELETE FROM t RETURNING *) SELECT * FROM x", "UPDATE t SET a=1", "select * from t; select 2", "COPY t TO '/tmp/x'"],
+    [
+        "DELETE FROM payments",
+        "SELECT 1; DROP TABLE x",
+        "WITH x AS (DELETE FROM t RETURNING *) SELECT * FROM x",
+        "UPDATE t SET a=1",
+        "select * from t; select 2",
+        "COPY t TO '/tmp/x'",
+    ],
 )
 def test_gn7t_queries_must_be_read_only(query):
     from agentfirm.runtime.connectors.services import assert_read_only
@@ -217,7 +256,11 @@ async def test_gn7t_live_queries_fail_clearly_without_calling_missing_routes(cli
     from agentfirm.runtime.connectors import services
 
     a = await register(client, org="Data Co")
-    await client.post("/v1/integrations/connections", headers=a.h, json={"kind": "gn7t", "name": "GN7T", "config": {"base_url": "https://gn7t.example.com"}, "secret": "gk_123456"})
+    await client.post(
+        "/v1/integrations/connections",
+        headers=a.h,
+        json={"kind": "gn7t", "name": "GN7T", "config": {"base_url": "https://gn7t.example.com"}, "secret": "gk_123456"},
+    )
     query_route = respx.post("https://gn7t.example.com/v1/query").respond(200, json={})
     datasets_route = respx.get("https://gn7t.example.com/v1/datasets").respond(200, json={})
     with live_connectors():
@@ -234,7 +277,12 @@ async def test_gn7t_live_queries_fail_clearly_without_calling_missing_routes(cli
 async def test_osv_audit_parses_pins_and_maps_results():
     from agentfirm.runtime.connectors import services
 
-    pkgs = services.parse_manifests({"requirements.txt": "requests==2.19.0\nflask>=2\n# c\nhttpx==0.27.0  # pinned", "web/package.json": json.dumps({"dependencies": {"lodash": "4.17.15", "react": "^18"}})})
+    pkgs = services.parse_manifests(
+        {
+            "requirements.txt": "requests==2.19.0\nflask>=2\n# c\nhttpx==0.27.0  # pinned",
+            "web/package.json": json.dumps({"dependencies": {"lodash": "4.17.15", "react": "^18"}}),
+        }
+    )
     assert pkgs == [("PyPI", "requests", "2.19.0"), ("PyPI", "httpx", "0.27.0"), ("npm", "lodash", "4.17.15")]
     respx.post("https://api.osv.dev/v1/querybatch").respond(200, json={"results": [{"vulns": [{"id": "GHSA-1"}]}, {}, {"vulns": [{"id": "GHSA-2"}]}]})
     with live_connectors():
@@ -271,7 +319,16 @@ async def test_smtp_requires_tls_and_sends_once(client, monkeypatch):
 
     monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
     a = await register(client, org="Mail Co")
-    await client.post("/v1/integrations/connections", headers=a.h, json={"kind": "smtp", "name": "Mail", "config": {"host": "smtp.example.com", "port": 587, "from_address": "mailer@example.com"}, "secret": "app-password-9"})
+    await client.post(
+        "/v1/integrations/connections",
+        headers=a.h,
+        json={
+            "kind": "smtp",
+            "name": "Mail",
+            "config": {"host": "smtp.example.com", "port": 587, "from_address": "mailer@example.com"},
+            "secret": "app-password-9",
+        },
+    )
     with live_connectors():
         out = await services.send_email(ctx_for(a.org_id), to=["x@example.com"], cc=[], subject="Notes", body="Hi", idempotency_key="e:s:email.send:0")
     assert out["sent"] and sent == [{"to": "x@example.com", "subject": "Notes", "id": "<e.s.email.send.0@agentfirm>"}]
@@ -303,7 +360,9 @@ def test_production_refuses_fixture_modes():
     from agentfirm.core.config import Settings
 
     with pytest.raises(RuntimeError, match="CONNECTOR_MODE"):
-        Settings(env="production", gateway_mode="live", web_mode="live", connector_mode="fixture", sandbox_backend="docker", jwt_private_key="x", master_key="x")
+        Settings(
+            env="production", gateway_mode="live", web_mode="live", connector_mode="fixture", sandbox_backend="docker", jwt_private_key="x", master_key="x"
+        )
     with pytest.raises(RuntimeError, match="SANDBOX_BACKEND"):
         Settings(env="production", gateway_mode="live", web_mode="live", connector_mode="live", sandbox_backend="fixture", jwt_private_key="x", master_key="x")
 
@@ -317,7 +376,9 @@ def test_cadences():
     assert next_run("weekly:mon@08:00", "Europe/Berlin", t) == datetime(2026, 11, 23, 7, 0, tzinfo=UTC)
     assert next_run("daily@08:00", "UTC", t) == datetime(2026, 11, 18, 8, 0, tzinfo=UTC)
     assert next_run("monthly:1@09:30", "America/New_York", t) == datetime(2026, 12, 1, 14, 30, tzinfo=UTC)
-    assert next_run("daily@07:00", "Europe/Berlin", datetime(2026, 3, 28, 12, 0, tzinfo=UTC)) == datetime(2026, 3, 29, 5, 0, tzinfo=UTC), "DST: 07:00 local after the spring change"
+    assert next_run("daily@07:00", "Europe/Berlin", datetime(2026, 3, 28, 12, 0, tzinfo=UTC)) == datetime(2026, 3, 29, 5, 0, tzinfo=UTC), (
+        "DST: 07:00 local after the spring change"
+    )
     for bad in ("0 8 * * 1", "weekly:funday@08:00", "monthly:31@08:00", "daily@25:00"):
         with pytest.raises(CadenceError):
             next_run(bad, "UTC", t)
@@ -336,7 +397,11 @@ async def test_unresolvable_connection_host_is_a_validation_error(client):
 
     web.RESOLVER = fail
     try:
-        r = await client.post("/v1/integrations/connections", headers=a.h, json={"kind": "webhook", "name": "x", "config": {"url": "https://nowhere.invalid/x", "actions": ["social.publish"]}})
+        r = await client.post(
+            "/v1/integrations/connections",
+            headers=a.h,
+            json={"kind": "webhook", "name": "x", "config": {"url": "https://nowhere.invalid/x", "actions": ["social.publish"]}},
+        )
     finally:
         web.RESOLVER = saved
     assert r.status_code == 422 and "could not be resolved" in r.text

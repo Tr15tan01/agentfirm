@@ -22,6 +22,11 @@ import type {
   Member,
   MemoryEntry,
   ModelImportResult,
+  ProviderTestResult,
+  SearchProviderKey,
+  SearchSettings,
+  SearchTestResult,
+  StopResult,
   RoutingData,
   RoutingRoute,
   TaskEvent,
@@ -84,6 +89,10 @@ export interface AgentFirmApi {
     reply(id: string, message: string): Promise<void>;
     /** Execution control; resolves with the status the engine accepted. */
     control(id: string, action: "pause" | "resume" | "cancel" | "retry"): Promise<TaskRunSummary["status"]>;
+    /** Stops anything still running, then deletes the task with its history and files. Cannot be undone. */
+    remove(id: string): Promise<void>;
+    /** Stops every running/queued task in this workspace, or only one agent's. */
+    stopAll(agent?: AgentKey): Promise<StopResult>;
   };
 
   approvals: {
@@ -122,8 +131,16 @@ export interface AgentFirmApi {
     saveRoute(route: RoutingRoute): Promise<void>;
     updateProvider(providerId: string, patch: { enabled?: boolean; baseUrl?: string }): Promise<void>;
     setCredential(providerId: string, apiKey: string): Promise<{ last4: string }>;
+    /** Sends one tiny real request to the provider so a wrong URL or key shows up here, not in a failed task. */
+    testProvider(providerId: string): Promise<ProviderTestResult>;
     /** Fetches the provider's own model list; new models are created disabled for review. */
     importModels(providerId: string): Promise<ModelImportResult>;
+    /** Web search used by the research tools (super-admin). */
+    search(): Promise<SearchSettings>;
+    saveSearch(input: { provider: SearchProviderKey; fallback: SearchProviderKey; geminiModel: string }): Promise<SearchSettings>;
+    setBraveKey(apiKey: string): Promise<SearchSettings>;
+    clearBraveKey(): Promise<SearchSettings>;
+    testSearch(provider: "brave" | "gemini"): Promise<SearchTestResult>;
     updateModel(modelId: string, patch: { enabled?: boolean; label?: string; capabilities?: CapabilityKey[]; priceIn?: number | null; priceOut?: number | null }): Promise<void>;
   };
 
@@ -158,6 +175,8 @@ export interface AgentFirmApi {
     switchTool(key: string, disabled: boolean, reason: string): Promise<ToolRow[]>;
     agents(): Promise<AgentAdminRow[]>;
     setAgentEnabled(key: string, enabled: boolean, reason: string): Promise<AgentAdminRow[]>;
+    /** Emergency stop across all workspaces (or one): every agent, or just `agent`. */
+    stopAgents(input: { agent?: string; orgId?: string }): Promise<StopResult>;
     rollbackAgent(key: string, version: string, reason: string): Promise<AgentAdminRow[]>;
     billingEvents(): Promise<BillingEventRow[]>;
   };

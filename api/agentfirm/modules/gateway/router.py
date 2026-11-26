@@ -43,6 +43,12 @@ async def create_model(body: ModelIn, admin: SuperAdmin, session: DbSession) -> 
     return await service.create_model(session, admin, body)
 
 
+@router.post("/providers/{provider_id}/test", response_model=service.ProviderTestOut)
+async def test_provider(provider_id: UUID, admin: SuperAdmin, session: DbSession) -> service.ProviderTestOut:
+    """Sends one tiny real request to the provider and reports success or a readable reason."""
+    return await service.test_provider(session, admin, provider_id)
+
+
 @router.post("/providers/{provider_id}/import-models", response_model=ImportResult)
 async def import_models(provider_id: UUID, admin: SuperAdmin, session: DbSession) -> ImportResult:
     """Pull the provider's model list (new models are created disabled for review)."""

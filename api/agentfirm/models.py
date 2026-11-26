@@ -13,6 +13,7 @@ from agentfirm.modules.integrations.models import Connection, ContentCalendarEnt
 from agentfirm.modules.knowledge.models import KnowledgeChunk, KnowledgeDocument
 from agentfirm.modules.memory.models import Memory
 from agentfirm.modules.projects.models import Project
+from agentfirm.modules.search.models import SearchCredential, SearchSettings
 from agentfirm.modules.tasks.models import ApprovalRequest, Artifact, ExecutionEvent, StepResult, Task, TaskExecution, ToolExecution
 
 __all__ = [
@@ -53,6 +54,8 @@ __all__ = [
     "ReportSchedule",
     "RolePermission",
     "RoleRow",
+    "SearchCredential",
+    "SearchSettings",
     "StandingApproval",
     "StepResult",
     "Subscription",

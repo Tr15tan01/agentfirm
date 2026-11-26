@@ -96,7 +96,9 @@ async def test_weekly_report_schedule_runs_once_and_never_multiplies(client, exe
     scheduled = [t for t in tasks if t["title"].endswith("(scheduled)")]
     assert len(scheduled) == 1 and scheduled[0]["id"] != task["id"]
     assert scheduled[0]["executions"][0]["status"] == "completed"
-    assert await owner_db.fetchval("SELECT count(*) FROM report_schedules WHERE org_id = $1", uuid.UUID(a.org_id)) == 1, "the scheduled run didn't schedule itself"
+    assert await owner_db.fetchval("SELECT count(*) FROM report_schedules WHERE org_id = $1", uuid.UUID(a.org_id)) == 1, (
+        "the scheduled run didn't schedule itself"
+    )
     nxt = await owner_db.fetchval("SELECT next_run_at FROM report_schedules WHERE id = $1", sched["id"])
     assert nxt.weekday() == 0 and nxt.hour == 8
 
@@ -104,7 +106,11 @@ async def test_weekly_report_schedule_runs_once_and_never_multiplies(client, exe
 async def test_assistant_sends_to_the_team_only_after_approval(client, executable_agents):  # noqa: F811
     a = await register(client, org="Notes Co")
     await join_as(client, a, "member", name="Nia")
-    await client.post("/v1/knowledge/documents", headers=a.h, json={"title": "Meeting notes 17 Nov", "content": "Meeting notes: we agreed to ship the beta on 1 December. Owners: Ada (launch), Nia (support)."})
+    await client.post(
+        "/v1/knowledge/documents",
+        headers=a.h,
+        json={"title": "Meeting notes 17 Nov", "content": "Meeting notes: we agreed to ship the beta on 1 December. Owners: Ada (launch), Nia (support)."},
+    )
     task = await create(client, a, "Send the meeting notes to the team.", "assistant")
     await drain()
     t = await detail(client, a, task["id"])

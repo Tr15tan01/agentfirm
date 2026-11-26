@@ -3,7 +3,7 @@
  * simulated streaming so every Phase-2 screen exercises production code paths.
  */
 import type { AgentFirmApi, ReplyChunk } from "@/lib/api/contracts";
-import type { AgentProfile, ApprovalRequest, Connection, Idea, KnowledgeDoc, MemoryEntry, ProviderKey, UsageRange, UsageReport, TaskRunSummary } from "@/lib/types";
+import type { AgentProfile, ApprovalRequest, Connection, Idea, KnowledgeDoc, MemoryEntry, ProviderKey, SearchSettings, UsageRange, UsageReport, TaskRunSummary } from "@/lib/types";
 import { DEMO_AGENTS, DEMO_PROVIDERS, DEMO_ROUTES } from "./demo-data";
 import {
   CONVERSATIONS,
@@ -107,6 +107,15 @@ const DEMO_CONNECTIONS: Connection[] = [
 ];
 const DEMO_MEMORIES: MemoryEntry[] = [{ key: "brand_voice", value: "Confident, warm, plain language. No jargon.", updatedAt: "2026-10-20T08:00:00Z" }];
 
+let demoSearch: SearchSettings = {
+  provider: "brave",
+  fallback: "none",
+  geminiModel: "gemini-3.5-flash-lite",
+  usingEnvironmentDefaults: true,
+  brave: { configured: false, last4: null, source: null },
+  gemini: { configured: true, last4: "demo", source: "gemini_provider" },
+};
+
 const liveOnly = (): Promise<never> => Promise.reject(new Error("Available with the live API (NEXT_PUBLIC_AGENTFIRM_API=http)."));
 
 export const mockApi: AgentFirmApi = {
@@ -134,6 +143,7 @@ export const mockApi: AgentFirmApi = {
     switchTool: liveOnly,
     agents: liveOnly,
     setAgentEnabled: liveOnly,
+    stopAgents: liveOnly,
     rollbackAgent: liveOnly,
     billingEvents: liveOnly,
   },
@@ -180,6 +190,13 @@ export const mockApi: AgentFirmApi = {
     },
     events: async () => [],
     reply: liveOnly,
+    remove: async () => {
+      await sleep(300);
+    },
+    stopAll: async () => {
+      await sleep(350);
+      return { executionsStopped: 0, tasksAffected: 0 };
+    },
     control: async (_id, action) => {
       await sleep(350);
       const next: Record<typeof action, TaskRunSummary["status"]> = { pause: "paused", resume: "running", cancel: "cancelled", retry: "running" };
@@ -276,12 +293,36 @@ export const mockApi: AgentFirmApi = {
     updateProvider: async () => {
       await sleep(150);
     },
+    testProvider: async (providerId) => {
+      await sleep(500);
+      return { ok: true, provider: providerId as ProviderKey, model: "demo-model", latencyMs: 420, reply: "ok", error: null };
+    },
     importModels: async (providerId) => {
       await sleep(400);
       return { provider: providerId as ProviderKey, found: 2, added: ["demo-new-model"], alreadyPresent: 1, note: "New models are created disabled. Review capabilities and prices, then enable them." };
     },
     updateModel: async () => {
       await sleep(150);
+    },
+    search: async () => ({ ...demoSearch }),
+    saveSearch: async (i) => {
+      await sleep(250);
+      demoSearch = { ...demoSearch, provider: i.provider, fallback: i.fallback, geminiModel: i.geminiModel, usingEnvironmentDefaults: false };
+      return { ...demoSearch };
+    },
+    setBraveKey: async (key) => {
+      await sleep(250);
+      demoSearch = { ...demoSearch, brave: { configured: true, last4: key.slice(-4), source: "admin" } };
+      return { ...demoSearch };
+    },
+    clearBraveKey: async () => {
+      await sleep(200);
+      demoSearch = { ...demoSearch, brave: { configured: false, last4: null, source: null } };
+      return { ...demoSearch };
+    },
+    testSearch: async (provider) => {
+      await sleep(500);
+      return { ok: true, provider, results: 3, sample: ["Demo result one", "Demo result two", "Demo result three"], error: null };
     },
     setCredential: async (_id, key) => {
       await sleep(250);

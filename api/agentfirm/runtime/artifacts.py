@@ -22,6 +22,7 @@ def object_key(org_id: UUID, execution_id: UUID, name: str) -> str:
 class ArtifactStore(Protocol):
     async def put(self, key: str, data: bytes, content_type: str) -> None: ...
     async def get(self, key: str) -> bytes: ...
+    async def delete(self, key: str) -> None: ...
 
 
 class LocalStore:
@@ -42,6 +43,9 @@ class LocalStore:
     async def get(self, key: str) -> bytes:
         return await asyncio.to_thread(self._path(key).read_bytes)
 
+    async def delete(self, key: str) -> None:
+        await asyncio.to_thread(self._path(key).unlink, True)
+
 
 class R2Store:  # pragma: no cover - requires Cloudflare credentials
     """Cloudflare R2 through its S3-compatible API (boto3 is imported lazily)."""
@@ -61,6 +65,9 @@ class R2Store:  # pragma: no cover - requires Cloudflare credentials
     async def get(self, key: str) -> bytes:
         obj = await asyncio.to_thread(self.client.get_object, Bucket=self.bucket, Key=key)
         return obj["Body"].read()
+
+    async def delete(self, key: str) -> None:
+        await asyncio.to_thread(self.client.delete_object, Bucket=self.bucket, Key=key)
 
 
 def get_store() -> ArtifactStore:

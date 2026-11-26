@@ -374,6 +374,47 @@ export interface RoutingRoute {
   temperature: number;
 }
 
+export type SearchProviderKey = "brave" | "gemini" | "none";
+
+export interface SearchKeyState {
+  configured: boolean;
+  last4: string | null;
+  source: "admin" | "environment" | "gemini_provider" | null;
+}
+
+/** Which web-search back-end the research tools use. Keys are write-only: only `last4` comes back. */
+export interface SearchSettings {
+  provider: SearchProviderKey;
+  fallback: SearchProviderKey;
+  geminiModel: string;
+  usingEnvironmentDefaults: boolean;
+  brave: SearchKeyState;
+  gemini: SearchKeyState;
+}
+
+export interface SearchTestResult {
+  ok: boolean;
+  provider: string;
+  results: number;
+  sample: string[];
+  error: string | null;
+}
+
+export interface StopResult {
+  executionsStopped: number;
+  tasksAffected: number;
+}
+
+/** Result of sending one tiny real request to a provider. */
+export interface ProviderTestResult {
+  ok: boolean;
+  provider: ProviderKey;
+  model: string | null;
+  latencyMs: number | null;
+  reply: string | null;
+  error: string | null;
+}
+
 /** Result of asking a provider for its own model list. Imported models start disabled. */
 export interface ModelImportResult {
   provider: ProviderKey;

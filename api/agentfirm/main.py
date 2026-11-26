@@ -31,6 +31,7 @@ from agentfirm.modules.integrations.router import router as integrations_router
 from agentfirm.modules.knowledge.router import router as knowledge_router
 from agentfirm.modules.memory.router import router as memories_router
 from agentfirm.modules.projects.router import router as projects_router
+from agentfirm.modules.search.router import router as search_admin_router
 from agentfirm.modules.tasks.router import approvals_router, artifacts_router
 from agentfirm.modules.tasks.router import router as tasks_router
 
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
         artifacts_router,
         audit_router,
         admin_router,
+        search_admin_router,
         knowledge_router,
         ideas_router,
         memories_router,

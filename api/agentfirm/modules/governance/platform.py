@@ -26,6 +26,7 @@ from agentfirm.modules.billing import accounts
 from agentfirm.modules.billing.models import BillingEvent, CreditBalance, CreditPack, Plan, Subscription, UsageRecord
 from agentfirm.modules.billing.subscriptions import PackOut, PlanOut, pack_out, plan_out
 from agentfirm.modules.identity.models import Membership, Organization
+from agentfirm.modules.tasks.service import StopIn, StopOut, stop_executions
 
 from .models import ToolOverride
 
@@ -80,7 +81,17 @@ def _plan_dict(p: Plan) -> dict[str, Any]:
 async def list_plans(admin: SuperAdmin, session: DbSession) -> list[AdminPlanOut]:
     counts = dict((await session.execute(select(Subscription.plan_key, func.count()).group_by(Subscription.plan_key))).all())
     rows = (await session.execute(select(Plan).order_by(Plan.sort, Plan.key))).scalars()
-    return [AdminPlanOut(**plan_out(p).model_dump(), paddle_price_id=p.paddle_price_id, is_public=p.is_public, is_active=p.is_active, sort=p.sort, organizations=counts.get(p.key, 0)) for p in rows]
+    return [
+        AdminPlanOut(
+            **plan_out(p).model_dump(),
+            paddle_price_id=p.paddle_price_id,
+            is_public=p.is_public,
+            is_active=p.is_active,
+            sort=p.sort,
+            organizations=counts.get(p.key, 0),
+        )
+        for p in rows
+    ]
 
 
 @router.put("/plans/{key}", response_model=list[AdminPlanOut])
@@ -95,7 +106,15 @@ async def put_plan(key: str, body: PlanIn, admin: SuperAdmin, session: DbSession
     before = _plan_dict(existing) if existing else None
     values = {**body.model_dump(), "updated_at": datetime.now(UTC)}
     await session.execute(insert(Plan).values(key=key, **values).on_conflict_do_update(index_elements=["key"], set_=values))
-    await record(session, action="plan.updated" if existing else "plan.created", target_type="plan", target_id=None, actor=admin, before=before, after={"key": key, **body.model_dump()})
+    await record(
+        session,
+        action="plan.updated" if existing else "plan.created",
+        target_type="plan",
+        target_id=None,
+        actor=admin,
+        before=before,
+        after={"key": key, **body.model_dump()},
+    )
     return await list_plans(admin, session)
 
 
@@ -113,7 +132,15 @@ async def put_pack(key: str, body: PackIn, admin: SuperAdmin, session: DbSession
     before = {k: getattr(existing, k) for k in PackIn.model_fields} if existing else None
     values = {**body.model_dump(), "updated_at": datetime.now(UTC)}
     await session.execute(insert(CreditPack).values(key=key, **values).on_conflict_do_update(index_elements=["key"], set_=values))
-    await record(session, action="credit_pack.updated" if existing else "credit_pack.created", target_type="credit_pack", target_id=None, actor=admin, before=before, after={"key": key, **body.model_dump()})
+    await record(
+        session,
+        action="credit_pack.updated" if existing else "credit_pack.created",
+        target_type="credit_pack",
+        target_id=None,
+        actor=admin,
+        before=before,
+        after={"key": key, **body.model_dump()},
+    )
     return await list_packs(admin, session)
 
 
@@ -147,7 +174,13 @@ class ManualPlanIn(BaseModel):
 async def list_accounts(admin: SuperAdmin, session: DbSession) -> list[AccountRow]:
     since = datetime.now(UTC) - timedelta(days=30)
     members = dict((await session.execute(select(Membership.org_id, func.count()).where(Membership.status == "active").group_by(Membership.org_id))).all())
-    used = dict((await session.execute(select(UsageRecord.org_id, func.coalesce(func.sum(UsageRecord.credits), 0)).where(UsageRecord.created_at >= since).group_by(UsageRecord.org_id))).all())
+    used = dict(
+        (
+            await session.execute(
+                select(UsageRecord.org_id, func.coalesce(func.sum(UsageRecord.credits), 0)).where(UsageRecord.created_at >= since).group_by(UsageRecord.org_id)
+            )
+        ).all()
+    )
     rows = (
         await session.execute(
             select(Organization, Subscription, CreditBalance)
@@ -191,7 +224,15 @@ async def grant_credits(org_id: UUID, body: GrantIn, admin: SuperAdmin, session:
     if body.credits < 0 and acc.balance.purchased_remaining + body.credits < 0:
         raise Unprocessable(f"Only {acc.balance.purchased_remaining} purchased credits can be removed.")
     await accounts.grant(session, org_id, body.credits, reason="admin_grant" if body.credits > 0 else "admin_debit", note=body.note, created_by=admin.user_id)
-    await record(session, action="credits.granted" if body.credits > 0 else "credits.removed", target_type="organization", target_id=org_id, actor=admin, after={"credits": body.credits, "note": body.note}, org_id=org_id)
+    await record(
+        session,
+        action="credits.granted" if body.credits > 0 else "credits.removed",
+        target_type="organization",
+        target_id=org_id,
+        actor=admin,
+        after={"credits": body.credits, "note": body.note},
+        org_id=org_id,
+    )
     return await list_accounts(admin, session)
 
 
@@ -218,7 +259,16 @@ async def set_manual_plan(org_id: UUID, body: ManualPlanIn, admin: SuperAdmin, s
     await session.flush()
     acc = await accounts.load(session, org_id, lock=True)
     await accounts.roll_period(session, acc, start=now, end=now + relativedelta(months=1))
-    await record(session, action="plan.assigned", target_type="organization", target_id=org_id, actor=admin, before=before, after={"plan": plan.key, "note": body.note}, org_id=org_id)
+    await record(
+        session,
+        action="plan.assigned",
+        target_type="organization",
+        target_id=org_id,
+        actor=admin,
+        before=before,
+        after={"plan": plan.key, "note": body.note},
+        org_id=org_id,
+    )
     return await list_accounts(admin, session)
 
 
@@ -269,7 +319,14 @@ async def switch_tool(key: str, body: ToolSwitchIn, admin: SuperAdmin, session: 
         raise NotFound("Unknown tool.")
     values = {"disabled": body.disabled, "reason": body.reason, "updated_by": admin.user_id, "updated_at": datetime.now(UTC)}
     await session.execute(insert(ToolOverride).values(tool=key, **values).on_conflict_do_update(index_elements=["tool"], set_=values))
-    await record(session, action="tool.disabled" if body.disabled else "tool.enabled", target_type="tool", target_id=None, actor=admin, after={"tool": key, "reason": body.reason})
+    await record(
+        session,
+        action="tool.disabled" if body.disabled else "tool.enabled",
+        target_type="tool",
+        target_id=None,
+        actor=admin,
+        after={"tool": key, "reason": body.reason},
+    )
     from agentfirm.runtime.tools.runtime import reset_override_cache
 
     reset_override_cache()
@@ -302,8 +359,16 @@ async def list_agent_admin(admin: SuperAdmin, session: DbSession) -> list[AgentA
     agents = (await session.execute(select(Agent).order_by(Agent.key))).scalars().all()
     out = []
     for a in agents:
-        vers = (await session.execute(select(AgentVersion.version, AgentVersion.is_current).where(AgentVersion.agent_id == a.id).order_by(AgentVersion.created_at.desc()))).all()
-        out.append(AgentAdminRow(key=a.key, name=a.name, enabled=a.is_enabled, current_version=next((v for v, cur in vers if cur), None), versions=[v for v, _ in vers]))
+        vers = (
+            await session.execute(
+                select(AgentVersion.version, AgentVersion.is_current).where(AgentVersion.agent_id == a.id).order_by(AgentVersion.created_at.desc())
+            )
+        ).all()
+        out.append(
+            AgentAdminRow(
+                key=a.key, name=a.name, enabled=a.is_enabled, current_version=next((v for v, cur in vers if cur), None), versions=[v for v, _ in vers]
+            )
+        )
     return out
 
 
@@ -314,8 +379,23 @@ async def patch_agent(key: str, body: AgentPatch, admin: SuperAdmin, session: Db
         raise NotFound("Unknown agent.")
     before = agent.is_enabled
     agent.is_enabled = body.enabled
-    await record(session, action="agent.enabled" if body.enabled else "agent.disabled", target_type="agent", target_id=agent.id, actor=admin, before={"enabled": before}, after={"enabled": body.enabled, "reason": body.reason})
+    await record(
+        session,
+        action="agent.enabled" if body.enabled else "agent.disabled",
+        target_type="agent",
+        target_id=agent.id,
+        actor=admin,
+        before={"enabled": before},
+        after={"enabled": body.enabled, "reason": body.reason},
+    )
     return await list_agent_admin(admin, session)
+
+
+@router.post("/agents/stop", response_model=StopOut)
+async def stop_agents(body: StopIn, admin: SuperAdmin, session: DbSession) -> StopOut:
+    """Emergency stop: cancel all running/queued work of one agent (`agent`) or every agent, across
+    all workspaces or just one (`org_id`). Running work is interrupted by the workers within seconds."""
+    return await stop_executions(session, admin, body, platform=True)
 
 
 @router.post("/agents/{key}/rollback", response_model=list[AgentAdminRow])
@@ -326,7 +406,14 @@ async def rollback_agent(key: str, body: RollbackIn, admin: SuperAdmin, session:
         await rollback(session, key, body.version)
     except PublishError as exc:
         raise Unprocessable(str(exc)) from exc
-    await record(session, action="agent.rolled_back", target_type="agent", target_id=None, actor=admin, after={"agent": key, "version": body.version, "reason": body.reason})
+    await record(
+        session,
+        action="agent.rolled_back",
+        target_type="agent",
+        target_id=None,
+        actor=admin,
+        after={"agent": key, "version": body.version, "reason": body.reason},
+    )
     return await list_agent_admin(admin, session)
 
 

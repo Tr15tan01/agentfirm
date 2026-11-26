@@ -196,8 +196,41 @@ async def sources_verify(ctx: ExecutionContext, args: dict[str, Any]) -> dict[st
 # ── Knowledge ────────────────────────────────────────────────────────────────
 
 
-STOPWORDS = {"the", "and", "for", "our", "with", "this", "that", "what", "how", "from", "into", "about", "your", "you", "are", "was", "were",
-             "did", "does", "say", "send", "tell", "give", "please", "can", "could", "would", "should", "need", "want", "make", "write", "draft"}
+STOPWORDS = {
+    "the",
+    "and",
+    "for",
+    "our",
+    "with",
+    "this",
+    "that",
+    "what",
+    "how",
+    "from",
+    "into",
+    "about",
+    "your",
+    "you",
+    "are",
+    "was",
+    "were",
+    "did",
+    "does",
+    "say",
+    "send",
+    "tell",
+    "give",
+    "please",
+    "can",
+    "could",
+    "would",
+    "should",
+    "need",
+    "want",
+    "make",
+    "write",
+    "draft",
+}
 
 
 @tool("knowledge.retrieve")

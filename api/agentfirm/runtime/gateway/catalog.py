@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from .adapters import gemini_api_root
+from .adapters import _HINTS, describe_connect_error, gemini_api_root, gn7t_api_root
 from .types import ProviderError
 
 OPENAI_BASE = "https://api.openai.com/v1"
@@ -36,17 +36,25 @@ def _is_embedding(name: str) -> bool:
 
 def _check(resp: httpx.Response, provider: str) -> None:
     if resp.status_code >= 400:
-        raise ProviderError(f"{provider} model list failed: HTTP {resp.status_code}", retriable=resp.status_code >= 500, status=resp.status_code)
+        hint = _HINTS.get(provider, {}).get(resp.status_code)
+        raise ProviderError(
+            f"{provider} model list failed: HTTP {resp.status_code}" + (f" — {hint}" if hint else ""),
+            retriable=resp.status_code >= 500,
+            status=resp.status_code,
+        )
 
 
 async def fetch_models(client: httpx.AsyncClient, provider: str, api_key: str | None, base_url: str | None) -> list[FetchedModel]:
     if provider == "gemini":
         return await _gemini(client, api_key, base_url)
-    base = (base_url or (OPENAI_BASE if provider == "openai" else "")).rstrip("/")
+    base = (gn7t_api_root(base_url) if provider == "gn7t" else (base_url or (OPENAI_BASE if provider == "openai" else ""))).rstrip("/")
     if not base:
         raise ProviderError(f"{provider}: base_url not configured", retriable=False)
     headers = {"authorization": f"Bearer {api_key}"} if api_key else {}
-    resp = await client.get(f"{base}/models", headers=headers)
+    try:
+        resp = await client.get(f"{base}/models", headers=headers)
+    except httpx.HTTPError as exc:
+        raise ProviderError(describe_connect_error(provider, base, exc), retriable=True) from exc
     _check(resp, provider)
     data = resp.json().get("data") or []
     found = []

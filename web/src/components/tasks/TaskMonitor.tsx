@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as Tabs from "@radix-ui/react-tabs";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowLeft, Ban, FolderKanban, Loader2, Pause, Play, RotateCcw, Send, User, GitBranch } from "lucide-react";
+import { ArrowLeft, Ban, FolderKanban, Loader2, Pause, Play, RotateCcw, Send, Trash, User, GitBranch } from "lucide-react";
 import type { ExecutionStatus, TaskDetail, LogLine } from "@/lib/types";
 import type { StreamConnection } from "@/lib/events/types";
 import { AGENT_IDENTITIES } from "@/lib/agents";
 import { cn } from "@/lib/cn";
 import { api } from "@/data/api";
+import { refresh } from "@/lib/live";
 import { AgentActivityCore } from "@/components/agent/AgentActivityCore";
 import { AgentCollaborationCore } from "@/components/agent/AgentCollaborationCore";
 import { Badge, Button, Card, DemoBadge, EXECUTION_STATUS_META, Progress } from "@/components/ui/primitives";
@@ -31,6 +33,8 @@ export function TaskMonitor({ task, demo, connection, onChanged }: { task: TaskD
   const status = override && override.from === task.status ? override.to : task.status;
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const router = useRouter();
   const [levels, setLevels] = useState<LogLine["level"][]>(["debug", "info", "warn", "error"]);
 
   const m = EXECUTION_STATUS_META[status];
@@ -56,8 +60,22 @@ export function TaskMonitor({ task, demo, connection, onChanged }: { task: TaskD
 
   const canPause = task.controls.pause && status === "running";
   const canResume = status === "paused";
+  const remove = async () => {
+    setBusy("delete");
+    try {
+      await api.tasks.remove(task.id);
+      toast({ tone: "warning", title: "Task deleted", description: "Anything still running was stopped first." });
+      refresh("tasks:list");
+      router.push("/tasks");
+    } catch (e) {
+      toast({ tone: "error", title: "Couldn't delete this task", description: e instanceof Error ? e.message : String(e) });
+      setBusy(null);
+      setConfirmDelete(false);
+    }
+  };
+
   const canCancel = task.controls.cancel && !["completed", "failed", "cancelled"].includes(status);
-  const canRetry = task.controls.retry && (status === "failed" || status === "completed");
+  const canRetry = task.controls.retry && (status === "failed" || status === "cancelled" || status === "completed");
 
   return (
     <div className="space-y-5">
@@ -119,7 +137,7 @@ export function TaskMonitor({ task, demo, connection, onChanged }: { task: TaskD
             ) : null}
             {canRetry ? (
               <Button variant="primary" onClick={() => control("retry")} disabled={!!busy}>
-                {busy === "retry" ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />} {status === "failed" ? "Retry from checkpoint" : "Run again"}
+                {busy === "retry" ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />} {status === "completed" ? "Run again" : "Retry from checkpoint"}
               </Button>
             ) : null}
             {canCancel ? (
@@ -127,7 +145,9 @@ export function TaskMonitor({ task, demo, connection, onChanged }: { task: TaskD
                 <Ban className="size-4" /> Cancel
               </Button>
             ) : null}
-            {!canPause && !canResume && !canCancel && !canRetry ? <span className="text-[12px] text-fg-3">No controls available for this run</span> : null}
+            <Button variant="ghost" onClick={() => setConfirmDelete(true)} disabled={!!busy} title="Stop and delete this task">
+              <Trash className="size-4" /> Delete
+            </Button>
           </div>
         </div>
       </Card>
@@ -319,6 +339,26 @@ export function TaskMonitor({ task, demo, connection, onChanged }: { task: TaskD
           </Card>
         </div>
       </div>
+
+      <Dialog.Root open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/55 backdrop-blur-sm" />
+          <Dialog.Content className="fixed left-1/2 top-1/3 z-50 w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 rounded-[16px] border border-line bg-card p-5 shadow-[var(--shadow)]">
+            <Dialog.Title className="text-[16px] font-semibold">Delete this task?</Dialog.Title>
+            <Dialog.Description className="mt-1.5 text-[13.5px] text-fg-2">
+              If it is still running it is stopped first. The task, its history, approvals and files are then removed for good. This can&apos;t be undone.
+            </Dialog.Description>
+            <div className="mt-4 flex justify-end gap-2">
+              <Dialog.Close asChild>
+                <Button variant="ghost">Keep it</Button>
+              </Dialog.Close>
+              <Button variant="danger" onClick={remove} disabled={busy === "delete"}>
+                {busy === "delete" ? <Loader2 className="size-4 animate-spin" /> : <Trash className="size-4" />} Stop and delete
+              </Button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       <Dialog.Root open={confirmCancel} onOpenChange={setConfirmCancel}>
         <Dialog.Portal>

@@ -1,7 +1,7 @@
 "use client";
 
 import * as Tabs from "@radix-ui/react-tabs";
-import { Loader2, Pencil, Plus, Power, RotateCcw } from "lucide-react";
+import { Loader2, OctagonX, Pencil, Plus, Power, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/data/api";
 import { LiveBoundary, LIVE_DATA, refresh, useResource } from "@/lib/live";
@@ -443,8 +443,32 @@ function AgentsTab() {
   const tools = useResource("admin:tools", () => api.platform.tools());
   const { busy, run } = useAction();
   const reason = (what: string) => window.prompt(`Reason for ${what} (audit log):`)?.trim();
+  const toast = useToast();
+  const stop = async (agent?: AgentAdminRow) => {
+    const what = agent ? `every running ${agent.name} task in ALL workspaces` : "EVERY running and queued task in ALL workspaces";
+    if (!window.confirm(`Stop ${what}?\n\nThey are cancelled and interrupted within seconds. Customers can retry them later.`)) return;
+    await run(async () => {
+      const r = await api.platform.stopAgents({ agent: agent?.key });
+      toast({
+        tone: r.executionsStopped ? "warning" : "info",
+        title: r.executionsStopped ? `Stopped ${r.executionsStopped} run${r.executionsStopped === 1 ? "" : "s"}` : "Nothing was running",
+        description: r.executionsStopped ? `${r.tasksAffected} task${r.tasksAffected === 1 ? "" : "s"} across all workspaces.` : undefined,
+      });
+    });
+  };
   return (
     <div className="space-y-5">
+      <Card className="p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-[15px] font-semibold">Emergency stop</h3>
+            <p className="text-[12.5px] text-fg-3">Cancels and interrupts running, queued and paused work in every workspace, even mid-model-call. Use &ldquo;Stop&rdquo; on an agent below to stop just that agent. Turning an agent off afterwards keeps new runs from starting.</p>
+          </div>
+          <Button variant="danger" disabled={busy} onClick={() => void stop()}>
+            <OctagonX className="size-4" /> Stop all agents
+          </Button>
+        </div>
+      </Card>
       <Card className="p-5">
         <h3 className="text-[15px] font-semibold">Agents</h3>
         <p className="text-[12.5px] text-fg-3">Turning an agent off stops new and queued runs at once. Rollback makes an earlier published version current.</p>
@@ -476,6 +500,9 @@ function AgentsTab() {
                       </option>
                     ))}
                 </select>
+                <Button size="sm" variant="danger" disabled={busy} onClick={() => void stop(a)} title={`Stop every running ${a.name} task`}>
+                  <OctagonX className="size-3.5" /> Stop
+                </Button>
                 <Button
                   size="sm"
                   disabled={busy}

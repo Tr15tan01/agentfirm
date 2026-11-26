@@ -4,15 +4,17 @@ machine; this module never executes agents itself."""
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agentfirm.core.db import DbContext, apply_context
 from agentfirm.core.deps import Principal
 from agentfirm.core.errors import Conflict, Forbidden, NotFound, Unprocessable
 from agentfirm.core.permissions import Perm
@@ -22,6 +24,8 @@ from agentfirm.modules.audit.service import record
 from agentfirm.modules.projects.service import get_project
 
 from .models import TERMINAL_STATUSES, ApprovalRequest, Artifact, ExecutionEvent, Task, TaskExecution
+
+log = logging.getLogger("agentfirm.tasks")
 
 Action = Literal["pause", "resume", "cancel", "retry"]
 
@@ -265,7 +269,12 @@ def _validate_parameters(manifest: dict[str, Any], params: dict[str, Any]) -> tu
 
 
 #: Who may decide an approval depends on the side effect (Agent Interface §8).
-APPROVER: dict[str, Perm] = {"external": Perm.APPROVALS_DECIDE, "internal": Perm.APPROVALS_DECIDE, "financial": Perm.BILLING_MANAGE, "destructive": Perm.AGENTS_CONFIGURE}
+APPROVER: dict[str, Perm] = {
+    "external": Perm.APPROVALS_DECIDE,
+    "internal": Perm.APPROVALS_DECIDE,
+    "financial": Perm.BILLING_MANAGE,
+    "destructive": Perm.AGENTS_CONFIGURE,
+}
 
 
 # ── Commands & queries ───────────────────────────────────────────────────────
@@ -289,7 +298,15 @@ async def create_task(session: AsyncSession, principal: Principal, body: TaskIn,
         # One agent: run it directly (its parameters are validated against its manifest).
         _agent, version = await current_version(session, agent_keys[0])
         params, budget = _validate_parameters(version.manifest, body.parameters)
-        task = Task(org_id=principal.org_id, title=title, objective=body.objective, project_id=body.project_id, created_by=principal.user_id, idempotency_key=idempotency_key, parameters=params)
+        task = Task(
+            org_id=principal.org_id,
+            title=title,
+            objective=body.objective,
+            project_id=body.project_id,
+            created_by=principal.user_id,
+            idempotency_key=idempotency_key,
+            parameters=params,
+        )
         session.add(task)
         await session.flush()
         root = TaskExecution(org_id=principal.org_id, task_id=task.id, agent_version_id=version.id, status="queued", stage="Queued", budget_credits=budget)
@@ -302,7 +319,15 @@ async def create_task(session: AsyncSession, principal: Principal, body: TaskIn,
             if not needed <= {p.value for p in principal.permissions}:
                 raise Forbidden(f"You don't have permission to use the {key} agent.")
         budget = _orchestration_budget(body.parameters)
-        task = Task(org_id=principal.org_id, title=title, objective=body.objective, project_id=body.project_id, created_by=principal.user_id, idempotency_key=idempotency_key, parameters={})
+        task = Task(
+            org_id=principal.org_id,
+            title=title,
+            objective=body.objective,
+            project_id=body.project_id,
+            created_by=principal.user_id,
+            idempotency_key=idempotency_key,
+            parameters={},
+        )
         session.add(task)
         await session.flush()
         root = TaskExecution(
@@ -398,9 +423,7 @@ async def reply(session: AsyncSession, principal: Principal, task_id: UUID, body
     keys = list((root.parameters or {}).get("agents", [])) if root.kind == "orchestrator" else []
     await check_can_start(session, principal.org_id, keys)
     questions = [str(q) for q in (result.get("questions") or [result.get("summary", "")]) if q]
-    clarified = (
-        f"{root.objective or t.objective}\n\nYou asked:\n" + "\n".join(f"- {q}" for q in questions) + f"\n\nThe user answered:\n{body.message.strip()}"
-    )
+    clarified = f"{root.objective or t.objective}\n\nYou asked:\n" + "\n".join(f"- {q}" for q in questions) + f"\n\nThe user answered:\n{body.message.strip()}"
     params = dict(root.parameters or {})
     if root.kind == "orchestrator":
         params |= {"resume_from": str(root.id), "clarification": body.message.strip()}
@@ -582,14 +605,18 @@ async def event_stream(org_id: UUID, task_id: UUID, cursor: int, is_disconnected
             async with sessionmaker()() as s, s.begin():
                 await apply_context(s, DbContext(org_id=org_id))
                 rows = (
-                    await s.execute(
-                        select(ExecutionEvent)
-                        .join(TaskExecution, (TaskExecution.id == ExecutionEvent.execution_id) & (TaskExecution.org_id == ExecutionEvent.org_id))
-                        .where(TaskExecution.task_id == task_id, ExecutionEvent.org_id == org_id, ExecutionEvent.id > cursor)
-                        .order_by(ExecutionEvent.id)
-                        .limit(500)
+                    (
+                        await s.execute(
+                            select(ExecutionEvent)
+                            .join(TaskExecution, (TaskExecution.id == ExecutionEvent.execution_id) & (TaskExecution.org_id == ExecutionEvent.org_id))
+                            .where(TaskExecution.task_id == task_id, ExecutionEvent.org_id == org_id, ExecutionEvent.id > cursor)
+                            .order_by(ExecutionEvent.id)
+                            .limit(500)
+                        )
                     )
-                ).scalars().all()
+                    .scalars()
+                    .all()
+                )
                 root_row = (
                     await s.execute(
                         select(TaskExecution.id, TaskExecution.status)
@@ -635,3 +662,120 @@ async def event_stream(org_id: UUID, task_id: UUID, cursor: int, is_disconnected
                 await pubsub.aclose()
             except Exception:  # noqa: S110 - advisory
                 pass
+
+
+# ── Stop / delete ────────────────────────────────────────────────────────────
+
+ACTIVE_STATUSES = ("queued", "running", "waiting_approval", "paused", "waiting_subtasks")
+
+
+class StopIn(BaseModel):
+    #: Agent key to stop (e.g. "research"); omit to stop every agent.
+    agent: str | None = Field(default=None, max_length=64, pattern=r"^[a-z0-9_.-]+$")
+    #: Super-admin only: restrict to one workspace. Omit for the whole platform.
+    org_id: UUID | None = None
+
+
+class StopOut(BaseModel):
+    executions_stopped: int
+    tasks_affected: int
+
+
+async def _cancel_executions(session: AsyncSession, rows: list[TaskExecution], *, actor: Principal, reason: str) -> int:
+    """Marks executions cancelled and records why. The worker notices within about two seconds and
+    interrupts the run, even in the middle of a model call. Caller must have the org context set."""
+    now = _now()
+    for ex in rows:
+        ex.status, ex.finished_at, ex.stage, ex.lease_owner, ex.lease_expires_at = "cancelled", now, "Cancelled", None, None
+        await append_event(session, ex, "execution.status", {"status": "cancelled", "requested_by": str(actor.user_id), "action": "stop", "reason": reason})
+    if rows:
+        await session.execute(
+            update(ApprovalRequest)
+            .where(ApprovalRequest.execution_id.in_([e.id for e in rows]), ApprovalRequest.status == "pending")
+            .values(status="expired", note="Execution was stopped.")
+        )
+    await session.flush()
+    return len(rows)
+
+
+async def _active_executions(session: AsyncSession, *, org_id: UUID | None, agent: str | None) -> list[TaskExecution]:
+    q = (
+        select(TaskExecution)
+        .outerjoin(AgentVersion, AgentVersion.id == TaskExecution.agent_version_id)
+        .outerjoin(Agent, Agent.id == AgentVersion.agent_id)
+        .where(TaskExecution.status.in_(ACTIVE_STATUSES))
+        .order_by(TaskExecution.org_id, TaskExecution.queued_at)
+        .with_for_update(of=TaskExecution, key_share=True)
+    )
+    if org_id is not None:
+        q = q.where(TaskExecution.org_id == org_id)
+    if agent is not None:
+        q = q.where(Agent.key == agent)
+    return list((await session.execute(q)).scalars())
+
+
+async def stop_executions(session: AsyncSession, principal: Principal, body: StopIn, *, platform: bool) -> StopOut:
+    """Stops running/queued/paused work: every agent or one agent, in this workspace (members) or
+    across the platform / one workspace (super-admins)."""
+    if platform:
+        rows = await _active_executions(session, org_id=body.org_id, agent=body.agent)
+    else:
+        rows = await _active_executions(session, org_id=principal.org_id, agent=body.agent)
+    if body.agent is not None and body.agent not in {a for (a,) in (await session.execute(select(Agent.key))).all()}:
+        raise NotFound("Unknown agent.")
+    reason = f"stop {body.agent or 'all agents'}"
+    stopped, tasks = 0, set()
+    by_org: dict[UUID, list[TaskExecution]] = {}
+    for ex in rows:
+        by_org.setdefault(ex.org_id, []).append(ex)
+    for org_id, group in by_org.items():
+        if platform:  # RLS WITH CHECK requires the write context to match the row's workspace
+            await apply_context(session, DbContext(org_id=org_id, user_id=principal.user_id, platform_admin=True))
+        stopped += await _cancel_executions(session, group, actor=principal, reason=reason)
+        tasks.update(ex.task_id for ex in group)
+    await record(
+        session,
+        action="platform.agents_stopped" if platform else "task.stop_all",
+        target_type="agent" if body.agent else "platform",
+        target_id=None,
+        actor=principal,
+        after={"agent": body.agent, "org_id": str(body.org_id) if body.org_id else None, "executions": stopped, "tasks": len(tasks)},
+        platform=platform,
+    )
+    return StopOut(executions_stopped=stopped, tasks_affected=len(tasks))
+
+
+async def delete_task(session: AsyncSession, principal: Principal, task_id: UUID) -> None:
+    """Stops anything still running, then removes the task with its executions, events, approvals and
+    artifacts (database rows cascade; stored artifact files are removed best-effort)."""
+    from agentfirm.runtime.artifacts import get_store
+
+    t = await _get_task(session, principal, task_id)
+    live = list(
+        (
+            await session.execute(
+                select(TaskExecution)
+                .where(TaskExecution.task_id == t.id, TaskExecution.org_id == principal.org_id, TaskExecution.status.in_(ACTIVE_STATUSES))
+                .with_for_update(key_share=True)
+            )
+        ).scalars()
+    )
+    await _cancel_executions(session, live, actor=principal, reason="task deleted")
+    keys = list(
+        (
+            await session.execute(
+                select(Artifact.storage_key).join(TaskExecution, TaskExecution.id == Artifact.execution_id).where(TaskExecution.task_id == t.id)
+            )
+        ).scalars()
+    )
+    await record(
+        session, action="task.deleted", target_type="task", target_id=t.id, actor=principal, before={"title": t.title, "executions_stopped": len(live)}
+    )
+    await session.execute(delete(Task).where(Task.id == t.id, Task.org_id == principal.org_id))
+    await session.flush()
+    store = get_store()
+    for key in keys:  # after the rows are gone; a leftover file is harmless, a dangling row is not
+        try:
+            await store.delete(key)
+        except Exception:  # pragma: no cover - best effort
+            log.warning("could not delete artifact file %s", key, exc_info=True)

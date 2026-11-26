@@ -10,6 +10,9 @@ import { Badge, DemoBadge, EXECUTION_STATUS_META, Progress } from "@/components/
 import { Elapsed } from "@/components/ui/time";
 import { AgentGlyph } from "@/components/agent/AgentCard";
 import { ApprovalCard } from "./ExecutionParts";
+import { StopAll } from "./StopAll";
+
+const ACTIVE = new Set<ExecutionStatus>(["queued", "running", "waiting_approval", "paused"]);
 
 const TABS: { key: "all" | ExecutionStatus; label: string }[] = [
   { key: "all", label: "All runs" },
@@ -41,10 +44,13 @@ export function TaskTable({ tasks, approvals, demo }: { tasks: TaskRunSummary[];
           </div>
           <p className="mt-1 text-[14px] text-fg-2">Every execution keeps running when you close the browser. State and progress come from backend events.</p>
         </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <StopAll activeCount={tasks.filter((t) => ACTIVE.has(t.status)).length} />
         <label className="flex h-9 w-full items-center gap-2 rounded-[10px] border border-line bg-card-2 px-3 text-[13px] focus-within:border-accent sm:w-72">
           <Search className="size-4 text-fg-3" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by title or execution ID" className="w-full bg-transparent outline-none placeholder:text-fg-3" aria-label="Search tasks" />
         </label>
+        </div>
       </div>
 
       {approvals.length ? (

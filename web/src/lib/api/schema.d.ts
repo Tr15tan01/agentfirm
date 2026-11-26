@@ -343,7 +343,11 @@ export interface paths {
         get: operations["get_task_v1_tasks__task_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Task
+         * @description Stop and delete a task (and its history and files). Cannot be undone.
+         */
+        delete: operations["delete_task_v1_tasks__task_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -404,6 +408,26 @@ export interface paths {
          * @description Answer the task's question(s): starts a new attempt that continues from where it stopped.
          */
         post: operations["reply_v1_tasks__task_id__reply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/tasks/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop All
+         * @description Stop every running/queued task in this workspace, or only one agent's (`{"agent": "research"}`).
+         */
+        post: operations["stop_all_v1_tasks_stop_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -859,6 +883,27 @@ export interface paths {
         patch: operations["patch_agent_v1_admin_agents__key__patch"];
         trace?: never;
     };
+    "/v1/admin/agents/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Agents
+         * @description Emergency stop: cancel all running/queued work of one agent (`agent`) or every agent, across
+         *     all workspaces or just one (`org_id`). Running work is interrupted by the workers within seconds.
+         */
+        post: operations["stop_agents_v1_admin_agents_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/agents/{key}/rollback": {
         parameters: {
             query?: never;
@@ -1002,6 +1047,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/providers/{provider_id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Provider
+         * @description Sends one tiny real request to the provider and reports success or a readable reason.
+         */
+        post: operations["test_provider_v1_admin_providers__provider_id__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/providers/{provider_id}/import-models": {
         parameters: {
             query?: never;
@@ -1104,6 +1169,59 @@ export interface paths {
         get: operations["list_orgs_v1_admin_organizations_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Search */
+        get: operations["get_search_v1_admin_search_get"];
+        /** Put Search */
+        put: operations["put_search_v1_admin_search_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/search/brave-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Brave Key */
+        put: operations["put_brave_key_v1_admin_search_brave_key_put"];
+        post?: never;
+        /** Delete Brave Key */
+        delete: operations["delete_brave_key_v1_admin_search_brave_key_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/search/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Search */
+        post: operations["test_search_v1_admin_search_test_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1641,6 +1759,11 @@ export interface components {
             /** Project Id */
             project_id?: string | null;
         };
+        /** BraveKeyIn */
+        BraveKeyIn: {
+            /** Api Key */
+            api_key: string;
+        };
         /** Catalog */
         Catalog: {
             /** Plans */
@@ -2077,6 +2200,15 @@ export interface components {
             /** Billed At */
             billed_at: string | null;
         };
+        /** KeyState */
+        KeyState: {
+            /** Configured */
+            configured: boolean;
+            /** Last4 */
+            last4?: string | null;
+            /** Source */
+            source?: ("admin" | "environment" | "gemini_provider") | null;
+        };
         /** LedgerOut */
         LedgerOut: {
             /** Id */
@@ -2485,6 +2617,21 @@ export interface components {
             /** Base Url */
             base_url?: string | null;
         };
+        /** ProviderTestOut */
+        ProviderTestOut: {
+            /** Ok */
+            ok: boolean;
+            /** Provider */
+            provider: string;
+            /** Model */
+            model?: string | null;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Reply */
+            reply?: string | null;
+            /** Error */
+            error?: string | null;
+        };
         /** RecentRun */
         RecentRun: {
             /**
@@ -2575,6 +2722,72 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** SearchSettingsIn */
+        SearchSettingsIn: {
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "brave" | "gemini" | "none";
+            /**
+             * Fallback
+             * @default none
+             * @enum {string}
+             */
+            fallback: "brave" | "gemini" | "none";
+            /**
+             * Gemini Model
+             * @default gemini-3.5-flash-lite
+             */
+            gemini_model: string;
+        };
+        /** SearchSettingsOut */
+        SearchSettingsOut: {
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "brave" | "gemini" | "none";
+            /**
+             * Fallback
+             * @enum {string}
+             */
+            fallback: "brave" | "gemini" | "none";
+            /** Gemini Model */
+            gemini_model: string;
+            /** Using Environment Defaults */
+            using_environment_defaults: boolean;
+            brave: components["schemas"]["KeyState"];
+            gemini: components["schemas"]["KeyState"];
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /** SearchTestIn */
+        SearchTestIn: {
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "brave" | "gemini";
+            /**
+             * Query
+             * @default latest news about open source AI
+             */
+            query: string;
+        };
+        /** SearchTestOut */
+        SearchTestOut: {
+            /** Ok */
+            ok: boolean;
+            /** Provider */
+            provider: string;
+            /** Results */
+            results: number;
+            /** Sample */
+            sample: string[];
+            /** Error */
+            error?: string | null;
+        };
         /** SessionOut */
         SessionOut: {
             /**
@@ -2661,6 +2874,20 @@ export interface components {
             revoked_at: string | null;
             /** Active */
             active: boolean;
+        };
+        /** StopIn */
+        StopIn: {
+            /** Agent */
+            agent?: string | null;
+            /** Org Id */
+            org_id?: string | null;
+        };
+        /** StopOut */
+        StopOut: {
+            /** Executions Stopped */
+            executions_stopped: number;
+            /** Tasks Affected */
+            tasks_affected: number;
         };
         /** SwitchOrgIn */
         SwitchOrgIn: {
@@ -3632,6 +3859,35 @@ export interface operations {
             };
         };
     };
+    delete_task_v1_tasks__task_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_events_v1_tasks__task_id__events_get: {
         parameters: {
             query?: {
@@ -3723,6 +3979,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_all_v1_tasks_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StopIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopOut"];
                 };
             };
             /** @description Validation Error */
@@ -4465,6 +4754,39 @@ export interface operations {
             };
         };
     };
+    stop_agents_v1_admin_agents_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StopIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     rollback_agent_v1_admin_agents__key__rollback_post: {
         parameters: {
             query?: never;
@@ -4726,6 +5048,37 @@ export interface operations {
             };
         };
     };
+    test_provider_v1_admin_providers__provider_id__test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderTestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     import_models_v1_admin_providers__provider_id__import_models_post: {
         parameters: {
             query?: never;
@@ -4894,6 +5247,145 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgSummary"][];
+                };
+            };
+        };
+    };
+    get_search_v1_admin_search_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchSettingsOut"];
+                };
+            };
+        };
+    };
+    put_search_v1_admin_search_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchSettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_brave_key_v1_admin_search_brave_key_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BraveKeyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_brave_key_v1_admin_search_brave_key_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchSettingsOut"];
+                };
+            };
+        };
+    };
+    test_search_v1_admin_search_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchTestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchTestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

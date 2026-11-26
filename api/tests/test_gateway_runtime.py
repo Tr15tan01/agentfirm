@@ -21,7 +21,9 @@ from .conftest import register
 
 
 def req(schema: dict[str, Any] | None = None, temperature: float | None = 0.3) -> ModelRequest:
-    return ModelRequest(task="test.echo", messages=[Message("system", "be careful"), Message("user", "hello")], json_schema=schema, temperature=temperature, max_tokens=500)
+    return ModelRequest(
+        task="test.echo", messages=[Message("system", "be careful"), Message("user", "hello")], json_schema=schema, temperature=temperature, max_tokens=500
+    )
 
 
 # ── Adapters (wire format) ───────────────────────────────────────────────────
@@ -83,7 +85,9 @@ async def test_gemini_3_keeps_temperature_only_on_models_that_accept_it():
 
 @respx.mock
 async def test_gemini_bare_host_base_url_gets_v1beta_prefix():
-    route = respx.post(url__regex=r"https://generativelanguage\.googleapis\.com/v1beta/models/gemini-3\.8-flash:generateContent").respond(200, json={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
+    route = respx.post(url__regex=r"https://generativelanguage\.googleapis\.com/v1beta/models/gemini-3\.8-flash:generateContent").respond(
+        200, json={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
+    )
     async with httpx.AsyncClient() as c:
         await ADAPTERS["gemini"].complete(c, req(), model="gemini-3.8-flash", api_key="g-key", base_url="https://generativelanguage.googleapis.com")
     assert route.called
@@ -93,7 +97,14 @@ async def test_gemini_bare_host_base_url_gets_v1beta_prefix():
 async def test_gemini_conversation_ending_in_model_turn_gets_continue():
     route = respx.post(url__regex=r".*generateContent").respond(200, json={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
     from agentfirm.runtime.gateway.types import Message, ModelRequest
-    prefilled = ModelRequest(task="t", messages=[Message("system", "be brief"), Message("user", "hi"), Message("assistant", "partial")], max_tokens=50, temperature=0.2, json_schema=None)
+
+    prefilled = ModelRequest(
+        task="t",
+        messages=[Message("system", "be brief"), Message("user", "hi"), Message("assistant", "partial")],
+        max_tokens=50,
+        temperature=0.2,
+        json_schema=None,
+    )
     async with httpx.AsyncClient() as c:
         await ADAPTERS["gemini"].complete(c, prefilled, model="gemini-3.8-flash", api_key="g-key", base_url=None)
     contents = json.loads(route.calls[0].request.content)["contents"]
@@ -109,19 +120,49 @@ async def test_gemini_safety_block_is_not_retriable():
     assert not e.value.retriable and "SAFETY" in str(e.value)
 
 
+GN7T_URL = "https://gn7t.example.com/api/v1/openai/v1"
+
+
 @respx.mock
-@pytest.mark.parametrize("provider", ["gn7t"])
-async def test_inhouse_providers_are_openai_compatible_and_need_base_url(provider):
+async def test_gn7t_is_openai_compatible_needs_base_url_and_key():
     async with httpx.AsyncClient() as c:
         with pytest.raises(ProviderError, match="base_url"):
-            await ADAPTERS[provider].complete(c, req(), model="m", api_key=None, base_url=None)
-        route = respx.post("https://llm.internal.example/v1/chat/completions").respond(200, json={"choices": [{"message": {"content": "{}"}}]})
-        await ADAPTERS[provider].complete(c, req({"type": "object"}), model="local-70b", api_key=None, base_url="https://llm.internal.example/v1/")
+            await ADAPTERS["gn7t"].complete(c, req(), model="m", api_key="gn7t_a_b", base_url=None)
+        with pytest.raises(ProviderError, match="API key not configured") as e:
+            await ADAPTERS["gn7t"].complete(c, req(), model="m", api_key=None, base_url=GN7T_URL)
+        assert not e.value.retriable
+        route = respx.post(f"{GN7T_URL}/chat/completions").respond(200, json={"choices": [{"message": {"content": "{}"}}]})
+        await ADAPTERS["gn7t"].complete(c, req({"type": "object"}), model="qwen2.5-0.5b-instruct", api_key="gn7t_abc_secret", base_url=GN7T_URL + "/")
     sent = json.loads(route.calls[0].request.content)
     assert sent["max_tokens"] == 500
     assert "response_format" not in sent, "GN7T refuses any response_format other than text"
-    assert "authorization" not in route.calls[0].request.headers
+    assert route.calls[0].request.headers["authorization"] == "Bearer gn7t_abc_secret"
     assert any("JSON" in m["content"] for m in sent["messages"]), "schema must travel in a system message"
+
+
+@respx.mock
+@pytest.mark.parametrize("saved", ["https://gn7t.example.com", "https://gn7t.example.com/v1", "https://gn7t.example.com/api/v1"])
+async def test_gn7t_adapter_completes_a_wrong_or_partial_base_url(saved):
+    route = respx.post(f"{GN7T_URL}/chat/completions").respond(200, json={"choices": [{"message": {"content": "hi"}}]})
+    async with httpx.AsyncClient() as c:
+        await ADAPTERS["gn7t"].complete(c, req(), model="m", api_key="gn7t_a_b", base_url=saved)
+    assert route.called
+
+
+@respx.mock
+async def test_gn7t_errors_tell_the_admin_what_to_fix():
+    async with httpx.AsyncClient() as c:
+        respx.post(f"{GN7T_URL}/chat/completions").respond(401, json={"error": {"message": "bad key"}})
+        with pytest.raises(ProviderError, match="API Keys") as e:
+            await ADAPTERS["gn7t"].complete(c, req(), model="m", api_key="x", base_url=GN7T_URL)
+        assert not e.value.retriable
+        respx.post(f"{GN7T_URL}/chat/completions").respond(404, json={"error": {"message": "nope"}})
+        with pytest.raises(ProviderError, match=r"/api/v1/openai/v1"):
+            await ADAPTERS["gn7t"].complete(c, req(), model="m", api_key="x", base_url=GN7T_URL)
+        respx.post(f"{GN7T_URL}/chat/completions").mock(side_effect=httpx.ConnectError("Name or service not known"))
+        with pytest.raises(ProviderError, match=r"gn7t\.example\.com") as e2:
+            await ADAPTERS["gn7t"].complete(c, req(), model="m", api_key="x", base_url=GN7T_URL)
+        assert e2.value.retriable and "ConnectError" in str(e2.value)
 
 
 @respx.mock
@@ -179,7 +220,20 @@ def _resolver(*ips: str):  # type: ignore[no-untyped-def]
 
 @pytest.mark.parametrize(
     "ip",
-    ["127.0.0.1", "10.1.2.3", "172.16.0.9", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "::ffff:127.0.0.1", "2002:a00:1::", "224.0.0.1"],
+    [
+        "127.0.0.1",
+        "10.1.2.3",
+        "172.16.0.9",
+        "192.168.1.1",
+        "169.254.169.254",
+        "100.64.0.1",
+        "0.0.0.0",
+        "::1",
+        "fd00::1",
+        "::ffff:127.0.0.1",
+        "2002:a00:1::",
+        "224.0.0.1",
+    ],
 )
 async def test_ssrf_blocks_non_public_addresses(ip):
     from agentfirm.runtime.tools.web import BlockedURL, assert_public_url
@@ -223,7 +277,9 @@ async def test_fetch_strips_markup_and_caps_size():
     from agentfirm.runtime.tools.web import WebError, fetch
 
     respx.get("https://public.example/page").respond(
-        200, headers={"content-type": "text/html"}, text="<html><head><title>T</title><script>evil()</script></head><body><!-- hidden --><p>Visible &amp; text</p></body></html>"
+        200,
+        headers={"content-type": "text/html"},
+        text="<html><head><title>T</title><script>evil()</script></head><body><!-- hidden --><p>Visible &amp; text</p></body></html>",
     )
     respx.get("https://public.example/huge").respond(200, headers={"content-type": "text/html"}, content=b"x" * 50_000)
     respx.get("https://public.example/bin").respond(200, headers={"content-type": "application/octet-stream"}, content=b"\x00")
@@ -253,9 +309,20 @@ def _ctx(agent: str, perms: set[str], step_tools: frozenset[str] | None, approve
         return 0
 
     ctx = ExecutionContext(
-        org_id=uuid.uuid4(), task_id=uuid.uuid4(), execution_id=uuid.uuid4(), requested_by=uuid.uuid4(), agent_version_id=uuid.uuid4(),
-        manifest=registry().agents[agent], registry=registry(), permissions=frozenset(perms), budget_credits=10, credits_used=0,
-        gateway=None, sink=SimpleNamespace(emit=emit), objective="x", approved_tools=approved or set(),  # type: ignore[arg-type]
+        org_id=uuid.uuid4(),
+        task_id=uuid.uuid4(),
+        execution_id=uuid.uuid4(),
+        requested_by=uuid.uuid4(),
+        agent_version_id=uuid.uuid4(),
+        manifest=registry().agents[agent],
+        registry=registry(),
+        permissions=frozenset(perms),
+        budget_credits=10,
+        credits_used=0,
+        gateway=None,
+        sink=SimpleNamespace(emit=emit),
+        objective="x",
+        approved_tools=approved or set(),  # type: ignore[arg-type]
     )
     ctx.enter_step("s", step_tools)
     return ctx

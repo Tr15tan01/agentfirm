@@ -47,6 +47,7 @@ class Worker:
         self.concurrency = concurrency or s.worker_concurrency
         self.lease = s.worker_lease_seconds
         self.poll = s.worker_poll_seconds
+        self.halt_poll = max(0.5, min(self.poll, 2.0))
         self._sem = asyncio.Semaphore(self.concurrency)
         self._running: set[asyncio.Task[None]] = set()
         self._pool: AsyncConnectionPool | None = None
@@ -57,7 +58,10 @@ class Worker:
     async def __aenter__(self) -> Worker:
         await assert_safe_db_role(get_engine())
         self._pool = AsyncConnectionPool(
-            get_settings().psycopg_dsn, min_size=1, max_size=self.concurrency + 1, open=False,
+            get_settings().psycopg_dsn,
+            min_size=1,
+            max_size=self.concurrency + 1,
+            open=False,
             kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
         )
         await self._pool.open()
@@ -154,17 +158,41 @@ class Worker:
         for sid, org_id in due:
             async with sessionmaker()() as s, s.begin():
                 await apply_context(s, DbContext(org_id=org_id))
-                sched = (await s.execute(select(ReportSchedule).where(ReportSchedule.id == sid, ReportSchedule.active, ReportSchedule.next_run_at <= datetime.now(UTC)).with_for_update(skip_locked=True))).scalar_one_or_none()
+                sched = (
+                    await s.execute(
+                        select(ReportSchedule)
+                        .where(ReportSchedule.id == sid, ReportSchedule.active, ReportSchedule.next_run_at <= datetime.now(UTC))
+                        .with_for_update(skip_locked=True)
+                    )
+                ).scalar_one_or_none()
                 if sched is None:
                     continue
-                row = (await s.execute(select(Membership, User).join(User, User.id == Membership.user_id).where(Membership.org_id == org_id, Membership.user_id == sched.created_by, Membership.status == "active"))).first()
+                row = (
+                    await s.execute(
+                        select(Membership, User)
+                        .join(User, User.id == Membership.user_id)
+                        .where(Membership.org_id == org_id, Membership.user_id == sched.created_by, Membership.status == "active")
+                    )
+                ).first()
                 perms = frozenset(ROLE_PERMISSIONS[Role(row[0].role)]) if row else frozenset()
                 if Perm.TASKS_CREATE not in perms:
                     sched.active = False  # creator left or lost permission: stop, don't run as someone else
                     log.info("schedule %s disabled: creator can no longer create tasks", sid)
                     continue
-                principal = Principal(user_id=row[1].id, session_id=uuid4(), email=row[1].email, name=row[1].name, is_super_admin=False, org_id=org_id, membership_id=row[0].id, role=Role(row[0].role), permissions=perms)
-                body = tasks.TaskIn(objective=sched.objective, title=f"{sched.title} (scheduled)", agents=[sched.agent_key], parameters={**sched.parameters, "schedule": "off"})
+                principal = Principal(
+                    user_id=row[1].id,
+                    session_id=uuid4(),
+                    email=row[1].email,
+                    name=row[1].name,
+                    is_super_admin=False,
+                    org_id=org_id,
+                    membership_id=row[0].id,
+                    role=Role(row[0].role),
+                    permissions=perms,
+                )
+                body = tasks.TaskIn(
+                    objective=sched.objective, title=f"{sched.title} (scheduled)", agents=[sched.agent_key], parameters={**sched.parameters, "schedule": "off"}
+                )
                 due_at = sched.next_run_at
                 await tasks.create_task(s, principal, body, idempotency_key=f"schedule:{sid}:{due_at.isoformat()}")
                 sched.last_run_at, sched.next_run_at = due_at, next_run(sched.cadence, sched.timezone, max(due_at, datetime.now(UTC)))
@@ -183,28 +211,61 @@ class Worker:
                     .values(lease_expires_at=datetime.now(UTC) + timedelta(seconds=self.lease))
                 )
 
+    async def _watch_halt(self, ex_id: UUID, org_id: UUID, work: asyncio.Task[tuple[str, str]]) -> None:
+        """Hard stop: when a user cancels (or deletes) the task, interrupt the run right away, even in the
+        middle of a model call, instead of waiting for the next step boundary. Pause stays cooperative:
+        a paused run resumes later from its checkpoint, so it is never cut off in the middle of a tool call."""
+        while not work.done():
+            await asyncio.sleep(self.halt_poll)
+            try:
+                async with sessionmaker()() as s, s.begin():
+                    await apply_context(s, DbContext(org_id=org_id))
+                    status = await s.scalar(select(TaskExecution.status).where(TaskExecution.id == ex_id))
+            except Exception:  # a database blip must not kill a healthy run; the next poll retries
+                log.warning("halt check for execution %s failed; retrying", ex_id, exc_info=True)
+                continue
+            if status is None or status == "cancelled":
+                log.info("execution %s was %s; interrupting", ex_id, status or "deleted", extra={"execution_id": str(ex_id)})
+                work.cancel()
+                return
+
+    async def _execute(self, ex_id: UUID, org_id: UUID) -> tuple[str, str]:
+        """Returns (kind, final status)."""
+        assert self.checkpointer and self.gateway
+        async with sessionmaker()() as s, s.begin():
+            await apply_context(s, DbContext(org_id=org_id))
+            kind = await s.scalar(select(TaskExecution.kind).where(TaskExecution.id == ex_id))
+        if kind == "orchestrator":
+            return kind, await OrchestratorRun(execution_id=ex_id, org_id=org_id, worker_id=self.id, gateway=self.gateway).execute()
+        return kind or "agent", await Run(execution_id=ex_id, org_id=org_id, worker_id=self.id, gateway=self.gateway, checkpointer=self.checkpointer).execute()
+
     async def run_one(self, ex_id: UUID, org_id: UUID) -> str:
         assert self.checkpointer and self.gateway
         hb = asyncio.create_task(self._heartbeat(ex_id, org_id))
+        work = asyncio.create_task(self._execute(ex_id, org_id))
+        watch = asyncio.create_task(self._watch_halt(ex_id, org_id, work))
         try:
-            async with sessionmaker()() as s, s.begin():
-                await apply_context(s, DbContext(org_id=org_id))
-                kind = await s.scalar(select(TaskExecution.kind).where(TaskExecution.id == ex_id))
-            if kind == "orchestrator":
-                status = await OrchestratorRun(execution_id=ex_id, org_id=org_id, worker_id=self.id, gateway=self.gateway).execute()
-            else:
-                status = await Run(execution_id=ex_id, org_id=org_id, worker_id=self.id, gateway=self.gateway, checkpointer=self.checkpointer).execute()
+            try:
+                kind, status = await work
+            except asyncio.CancelledError:
+                me = asyncio.current_task()
+                if work.cancelled() and me is not None and me.cancelling() == 0:
+                    RUNS.labels("agent", "halted").inc()
+                    return "halted"  # interrupted on purpose by _watch_halt
+                raise
             log.info("execution %s → %s", ex_id, status, extra={"execution_id": str(ex_id), "org_id": str(org_id), "event": "execution.turn"})
-            RUNS.labels(kind or "agent", status).inc()
+            RUNS.labels(kind, status).inc()
             return status
         except Exception:
             log.exception("execution %s crashed; lease will expire and another attempt will resume it", ex_id, extra={"execution_id": str(ex_id)})
             RUNS.labels("unknown", "crashed").inc()
             return "crashed"
         finally:
-            hb.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await hb
+            for t in (hb, watch):
+                t.cancel()
+            for t in (hb, watch):
+                with contextlib.suppress(asyncio.CancelledError):
+                    await t
 
     def _spawn(self, ex_id: UUID, org_id: UUID) -> None:
         async def guarded() -> None:

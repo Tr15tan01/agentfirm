@@ -27,7 +27,15 @@ async def root(client, owner_db):
 async def plans(client, root, owner_db):
     """Pro and a credit pack for sale (as a super-admin would set them up), small test limits."""
     pro = {"name": "Pro", "monthly_credits": 5000, "max_seats": 5, "max_concurrent_tasks": 5, "price_cents": 4900, "paddle_price_id": "pri_test_pro", "sort": 1}
-    biz = {"name": "Business", "monthly_credits": 20000, "max_seats": 20, "max_concurrent_tasks": 10, "price_cents": 19900, "paddle_price_id": "pri_test_business", "sort": 2}
+    biz = {
+        "name": "Business",
+        "monthly_credits": 20000,
+        "max_seats": 20,
+        "max_concurrent_tasks": 10,
+        "price_cents": 19900,
+        "paddle_price_id": "pri_test_business",
+        "sort": 2,
+    }
     assert (await client.put("/v1/admin/plans/pro", headers=root.h, json=pro)).status_code == 200
     assert (await client.put("/v1/admin/plans/business", headers=root.h, json=biz)).status_code == 200
     pack = {"name": "Top-up 1k", "credits": 1000, "price_cents": 900, "paddle_price_id": "pri_test_pack"}
@@ -135,7 +143,8 @@ async def test_plan_limits_concurrency_seats_and_agents(client, owner_db):
 async def test_free_allowance_rolls_over_monthly(client, owner_db):
     a = await register(client, org="Roll Co")
     await owner_db.execute(
-        "UPDATE credit_balances SET plan_remaining = 7, period_start = now() - interval '40 days', period_end = now() - interval '10 days' WHERE org_id = $1", uuid.UUID(a.org_id)
+        "UPDATE credit_balances SET plan_remaining = 7, period_start = now() - interval '40 days', period_end = now() - interval '10 days' WHERE org_id = $1",
+        uuid.UUID(a.org_id),
     )
     from agentfirm.worker import Worker
 
@@ -186,7 +195,9 @@ async def test_subscribe_upgrade_topup_and_cancel(client, owner_db, root, plans)
     sub = {**paddle.FIXTURE.subscriptions[sub_id], "items": [{"price": {"id": "pri_test_business"}, "quantity": 1}]}
     upd = {"event_id": f"evt_{uuid.uuid4().hex}", "event_type": "subscription.updated", "occurred_at": "2026-11-17T10:00:00Z", "data": sub}
     raw = paddle.encode(upd)
-    assert (await client.post("/v1/billing/paddle/webhook", content=raw, headers={"Paddle-Signature": paddle.sign(raw, paddle.FIXTURE_SECRET)})).json() == {"result": "processed"}
+    assert (await client.post("/v1/billing/paddle/webhook", content=raw, headers={"Paddle-Signature": paddle.sign(raw, paddle.FIXTURE_SECRET)})).json() == {
+        "result": "processed"
+    }
     acc = (await client.get("/v1/billing/account", headers=a.h)).json()
     assert acc["plan"]["key"] == "business" and acc["credits_plan_remaining"] == 4000 + (20000 - 5000)
 
@@ -198,7 +209,12 @@ async def test_subscribe_upgrade_topup_and_cancel(client, owner_db, root, plans)
     # Cancel at period end; Paddle's canceled event moves the workspace to free and keeps purchased credits.
     assert (await client.post("/v1/billing/cancel", headers=a.h)).json()["cancel_at_period_end"] is True
     assert paddle.FIXTURE.cancels[-1] == sub_id
-    gone = {"event_id": f"evt_{uuid.uuid4().hex}", "event_type": "subscription.canceled", "occurred_at": "2026-12-17T10:00:00Z", "data": {**sub, "status": "canceled"}}
+    gone = {
+        "event_id": f"evt_{uuid.uuid4().hex}",
+        "event_type": "subscription.canceled",
+        "occurred_at": "2026-12-17T10:00:00Z",
+        "data": {**sub, "status": "canceled"},
+    }
     raw = paddle.encode(gone)
     await client.post("/v1/billing/paddle/webhook", content=raw, headers={"Paddle-Signature": paddle.sign(raw, paddle.FIXTURE_SECRET)})
     acc = (await client.get("/v1/billing/account", headers=a.h)).json()
@@ -209,7 +225,11 @@ async def test_webhook_for_unknown_price_is_recorded_not_applied(client, owner_d
     from agentfirm.modules.billing import paddle
 
     a = await register(client, org="Odd Co")
-    ev = {"event_id": f"evt_{uuid.uuid4().hex}", "event_type": "subscription.created", "data": {"id": "sub_x", "status": "active", "custom_data": {"org_id": a.org_id}, "items": [{"price": {"id": "pri_nope"}}]}}
+    ev = {
+        "event_id": f"evt_{uuid.uuid4().hex}",
+        "event_type": "subscription.created",
+        "data": {"id": "sub_x", "status": "active", "custom_data": {"org_id": a.org_id}, "items": [{"price": {"id": "pri_nope"}}]},
+    }
     raw = paddle.encode(ev)
     r = await client.post("/v1/billing/paddle/webhook", content=raw, headers={"Paddle-Signature": paddle.sign(raw, paddle.FIXTURE_SECRET)})
     assert r.json() == {"result": "error"}
@@ -230,7 +250,11 @@ async def test_super_admin_controls_are_audited_and_guarded(client, owner_db, ro
         ("patch", "/v1/admin/agents/creative", {"enabled": False, "reason": "maintenance"}),
     ):
         assert (await getattr(client, method)(path, headers=a.h, json=body)).status_code == 403
-    assert (await client.put("/v1/admin/plans/free", headers=root.h, json={"name": "Free", "monthly_credits": 1, "max_seats": 1, "max_concurrent_tasks": 1, "price_cents": 100})).status_code == 422
+    assert (
+        await client.put(
+            "/v1/admin/plans/free", headers=root.h, json={"name": "Free", "monthly_credits": 1, "max_seats": 1, "max_concurrent_tasks": 1, "price_cents": 100}
+        )
+    ).status_code == 422
 
     rows = (await client.post(f"/v1/admin/accounts/{a.org_id}/credits", headers=root.h, json={"credits": 250, "note": "goodwill"})).json()
     assert next(r for r in rows if r["id"] == a.org_id)["credits_available"] >= 250
@@ -277,9 +301,18 @@ POST = "Write a LinkedIn post about our tutoring beta and publish it."
 async def test_standing_approval_covers_matching_actions_within_limits(client, owner_db):
     a = await register(client, org="Standing Co")
     member = await join_as(client, a, "member", name="Mo")
-    body = {"tool": "social.publish", "agent": "marketing", "conditions": [{"fact": "channel", "op": "in", "value": ["linkedin"]}], "note": "Weekly LinkedIn posts", "max_uses": 1, "expires_in_days": 30}
+    body = {
+        "tool": "social.publish",
+        "agent": "marketing",
+        "conditions": [{"fact": "channel", "op": "in", "value": ["linkedin"]}],
+        "note": "Weekly LinkedIn posts",
+        "max_uses": 1,
+        "expires_in_days": 30,
+    }
     # Guard rails: destructive tools never; financial needs a cap and billing authority.
-    assert (await client.post("/v1/standing-approvals", headers=a.h, json={**body, "tool": "deploy.production", "agent": "engineer", "conditions": []})).status_code == 422
+    assert (
+        await client.post("/v1/standing-approvals", headers=a.h, json={**body, "tool": "deploy.production", "agent": "engineer", "conditions": []})
+    ).status_code == 422
     fin = {"tool": "ads.budget_change", "agent": "marketing", "conditions": [], "note": "Budgets", "max_uses": 5, "expires_in_days": 7}
     assert (await client.post("/v1/standing-approvals", headers=a.h, json=fin)).status_code == 422  # no amount cap
     fin["conditions"] = [{"fact": "amount", "op": "lte", "value": 50}]

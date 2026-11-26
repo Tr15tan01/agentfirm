@@ -47,14 +47,24 @@ def test_plan_validation_rejects_unsafe_or_impossible_plans():
     def plan(*subtasks: dict[str, Any]) -> OrchestrationPlan:
         return OrchestrationPlan.model_validate({"subtasks": list(subtasks)})
 
-    ok = plan({"key": "research", "agent": "research", "objective": "Find facts"}, {"key": "post", "agent": "marketing", "objective": "Write a post", "depends_on": ["research"]})
+    ok = plan(
+        {"key": "research", "agent": "research", "objective": "Find facts"},
+        {"key": "post", "agent": "marketing", "objective": "Write a post", "depends_on": ["research"]},
+    )
     assert validate_plan(ok, cands, {"research"}) == []
     assert any("not available" in e for e in validate_plan(plan({"key": "x1", "agent": "engineer", "objective": "Deploy"}), cands, set()))
-    cyc = plan({"key": "a1", "agent": "research", "objective": "Do A", "depends_on": ["b1"]}, {"key": "b1", "agent": "marketing", "objective": "Do B", "depends_on": ["a1"]})
+    cyc = plan(
+        {"key": "a1", "agent": "research", "objective": "Do A", "depends_on": ["b1"]},
+        {"key": "b1", "agent": "marketing", "objective": "Do B", "depends_on": ["a1"]},
+    )
     assert validate_plan(cyc, cands, set()) == ["dependencies contain a cycle"]
-    assert any("missing: marketing" in e for e in validate_plan(plan({"key": "r1", "agent": "research", "objective": "Find"}), cands, {"research", "marketing"}))
+    assert any(
+        "missing: marketing" in e for e in validate_plan(plan({"key": "r1", "agent": "research", "objective": "Find"}), cands, {"research", "marketing"})
+    )
     assert any("not an intent" in e for e in validate_plan(plan({"key": "r1", "agent": "research", "intent": "publish", "objective": "Find"}), cands, set()))
-    assert any("unknown dependency" in e for e in validate_plan(plan({"key": "r1", "agent": "research", "objective": "Find", "depends_on": ["zz"]}), cands, set()))
+    assert any(
+        "unknown dependency" in e for e in validate_plan(plan({"key": "r1", "agent": "research", "objective": "Find", "depends_on": ["zz"]}), cands, set())
+    )
     # Budgets: split fairly, capped by each agent's own limit; too small → no plan.
     assert allot(ok, cands, 1500) == {"research": 400, "post": 250}
     assert allot(ok, cands, 90) is None
@@ -160,7 +170,16 @@ async def test_stuck_subtask_skips_its_dependents_but_not_independent_work(clien
 
 
 async def test_agent_handoffs_become_subtasks_within_budget_and_depth(client, fixed_plan, corpus):  # noqa: F811
-    fixed_plan([{"key": "triage", "agent": "assistant", "intent": "route_to_specialist", "objective": "Research our top competitors and brainstorm ideas to beat them"}])
+    fixed_plan(
+        [
+            {
+                "key": "triage",
+                "agent": "assistant",
+                "intent": "route_to_specialist",
+                "objective": "Research our top competitors and brainstorm ideas to beat them",
+            }
+        ]
+    )
     a = await register(client, org="Handoff Co")
     # 200 credits: 60 reserved, 120 for the assistant → room for exactly one 20-credit handoff.
     task = await orchestrate(client, a, "Research our top competitors and brainstorm ideas to beat them", max_credits=200)
@@ -251,7 +270,9 @@ async def test_orchestrator_never_sleeps_through_a_finished_subtask(client, fixe
     child = subtasks(await detail(client, a, task["id"]))["only"]
     # Orchestrator is mid-turn (running) when the subtask's final status lands without a wake-up.
     await owner_db.execute("UPDATE task_executions SET status = 'running' WHERE id = $1", ex_id)
-    await owner_db.execute("UPDATE task_executions SET status = 'completed', result = '{\"status\": \"completed\", \"summary\": \"x\"}' WHERE id = $1", UUID(child["id"]))
+    await owner_db.execute(
+        'UPDATE task_executions SET status = \'completed\', result = \'{"status": "completed", "summary": "x"}\' WHERE id = $1', UUID(child["id"])
+    )
     run = OrchestratorRun(execution_id=UUID(str(ex_id)), org_id=UUID(str(org_id)), worker_id="w1", gateway=ModelGateway(http=None))  # type: ignore[arg-type]
     run.ctx = type("C", (), {"emit": staticmethod(lambda *a, **k: _noop())})()  # type: ignore[assignment]
     assert await run._idle() is False

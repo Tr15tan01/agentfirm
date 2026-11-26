@@ -26,7 +26,10 @@ import type {
   Member,
   ProviderKey,
   RoutingData,
+  SearchSettings,
+  SearchTestResult,
   SideEffect,
+  StopResult,
   TaskDetail,
   TaskEvent,
   TaskRunSummary,
@@ -99,6 +102,25 @@ export function toSummary(t: S["TaskOut"]): TaskRunSummary {
     startedSecondsAgo: secondsAgo(ex?.started_at ?? ex?.queued_at ?? t.created_at),
   };
 }
+
+type RawKey = { configured: boolean; last4: string | null; source: SearchSettings["brave"]["source"] };
+type RawSearch = {
+  provider: SearchSettings["provider"];
+  fallback: SearchSettings["fallback"];
+  gemini_model: string;
+  using_environment_defaults: boolean;
+  brave: RawKey;
+  gemini: RawKey;
+};
+const toSearch = (r: RawSearch): SearchSettings => ({
+  provider: r.provider,
+  fallback: r.fallback,
+  geminiModel: r.gemini_model,
+  usingEnvironmentDefaults: r.using_environment_defaults,
+  brave: r.brave,
+  gemini: r.gemini,
+});
+const toStop = (r: { executions_stopped: number; tasks_affected: number }): StopResult => ({ executionsStopped: r.executions_stopped, tasksAffected: r.tasks_affected });
 
 function toApproval(a: S["ApprovalOut"]): ApprovalRequest {
   return {
@@ -332,6 +354,7 @@ export const httpApi: AgentFirmApi = {
     switchTool: (key, disabled, reason) => call("PUT", `/admin/tools/${enc(key)}`, { disabled, reason }),
     agents: () => call("GET", "/admin/agents"),
     setAgentEnabled: (key, enabled, reason) => call("PATCH", `/admin/agents/${enc(key)}`, { enabled, reason }),
+    stopAgents: async (i) => toStop(await call<{ executions_stopped: number; tasks_affected: number }>("POST", "/admin/agents/stop", { agent: i.agent ?? null, org_id: i.orgId ?? null })),
     rollbackAgent: (key, version, reason) => call("POST", `/admin/agents/${enc(key)}/rollback`, { version, reason }),
     billingEvents: () => call("GET", "/admin/billing-events"),
   },
@@ -398,6 +421,10 @@ export const httpApi: AgentFirmApi = {
       const t = await call<S["TaskOut"]>("POST", `/tasks/${id}/${action}`);
       return toSummary(t).status;
     },
+    remove: async (id) => {
+      await call("DELETE", `/tasks/${id}`);
+    },
+    stopAll: async (agent) => toStop(await call<{ executions_stopped: number; tasks_affected: number }>("POST", "/tasks/stop", { agent: agent ?? null })),
   },
   approvals: {
     pending: async () => (await get<S["ApprovalOut"][]>("/approvals?status=pending")).map(toApproval),
@@ -478,6 +505,15 @@ export const httpApi: AgentFirmApi = {
     setCredential: async (id, apiKey) => {
       const p = await call<S["ProviderOut"]>("PUT", `/admin/providers/${id}/credential`, { api_key: apiKey });
       return { last4: p.credential_last4 ?? "" };
+    },
+    search: async () => toSearch(await get<RawSearch>("/admin/search")),
+    saveSearch: async (i) => toSearch(await call<RawSearch>("PUT", "/admin/search", { provider: i.provider, fallback: i.fallback, gemini_model: i.geminiModel })),
+    setBraveKey: async (apiKey) => toSearch(await call<RawSearch>("PUT", "/admin/search/brave-key", { api_key: apiKey })),
+    clearBraveKey: async () => toSearch(await call<RawSearch>("DELETE", "/admin/search/brave-key")),
+    testSearch: async (provider) => call<SearchTestResult>("POST", "/admin/search/test", { provider }),
+    testProvider: async (id) => {
+      const r = await call<{ ok: boolean; provider: string; model: string | null; latency_ms: number | null; reply: string | null; error: string | null }>("POST", `/admin/providers/${id}/test`);
+      return { ok: r.ok, provider: r.provider as ProviderKey, model: r.model, latencyMs: r.latency_ms, reply: r.reply, error: r.error };
     },
     importModels: async (id) => {
       const r = await call<{ provider: string; found: number; added: string[]; already_present: number; note: string }>("POST", `/admin/providers/${id}/import-models`);

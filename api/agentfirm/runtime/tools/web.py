@@ -153,23 +153,38 @@ async def fetch(url: str, *, client: httpx.AsyncClient | None = None, resolver=N
 
 
 async def search(query: str, *, count: int = 8, client: httpx.AsyncClient | None = None) -> list[dict[str, str]]:
+    """Runs the search back-end a super-admin chose (Admin → Models → Web search), falling back to the
+    secondary one when the primary fails. With nothing saved, the environment defaults apply."""
     s = get_settings()
     if s.web_mode == "fixture":
         return FIXTURES.search(query)[:count]
-    if s.search_provider == "none" or not s.brave_api_key:
-        raise WebError("Web search is not configured (set AGENTFIRM_BRAVE_API_KEY or choose another provider)")
+    from agentfirm.core.db import DbContext, apply_context, sessionmaker
+    from agentfirm.modules.search.service import load_config
+
+    from . import search_providers as sp
+
+    async with sessionmaker()() as session, session.begin():
+        await apply_context(session, DbContext(platform_admin=True))
+        cfg = await load_config(session)
+    chain = [p for p in (cfg.provider, cfg.fallback) if p in ("brave", "gemini")]
+    if not chain:
+        raise WebError("Web search is not configured. A super-admin can choose a provider in Admin → Models → Web search.")
     owns = client is None
-    client = client or httpx.AsyncClient(timeout=20)
+    client = client or httpx.AsyncClient(timeout=30)
+    errors: list[str] = []
     try:
-        resp = await client.get(
-            "https://api.search.brave.com/res/v1/web/search",
-            params={"q": query, "count": count},
-            headers={"X-Subscription-Token": s.brave_api_key, "Accept": "application/json"},
-        )
-        if resp.status_code >= 400:
-            raise WebError(f"search HTTP {resp.status_code}")
-        items = (resp.json().get("web") or {}).get("results", [])
-        return [{"title": i.get("title", ""), "url": i.get("url", ""), "snippet": html_to_text(i.get("description", ""))[1]} for i in items][:count]
+        for name in chain:
+            try:
+                if name == "brave":
+                    if not cfg.brave_key:
+                        raise WebError("brave: no API key saved")
+                    return await sp.brave_search(client, cfg.brave_key, query, count)
+                if not cfg.gemini_key:
+                    raise WebError("gemini: no API key saved")
+                return await sp.gemini_grounded_search(client, cfg.gemini_key, cfg.gemini_model, query, count, cfg.gemini_base_url)
+            except (WebError, httpx.HTTPError) as exc:
+                errors.append(str(exc) or type(exc).__name__)
+        raise WebError("; ".join(errors))
     finally:
         if owns:
             await client.aclose()

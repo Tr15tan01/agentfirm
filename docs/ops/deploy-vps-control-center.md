@@ -249,7 +249,7 @@ Then:
 | `AGENTFIRM_DB_POOL_SIZE` / `_MAX_OVERFLOW` | `10` / `5` | Database connections per process |
 | `AGENTFIRM_ARTIFACT_STORE` | `r2` | |
 | `AGENTFIRM_R2_ENDPOINT`, `_R2_BUCKET`, `_R2_ACCESS_KEY_ID`, `_R2_SECRET_ACCESS_KEY` | **you** | Agent output files |
-| `AGENTFIRM_SEARCH_PROVIDER` / `AGENTFIRM_BRAVE_API_KEY` | `brave` + **you**, or `none` | Research agent's web search |
+| `AGENTFIRM_SEARCH_PROVIDER` / `AGENTFIRM_BRAVE_API_KEY` | `brave` + **you**, or `none` | Default web search for the research agent. A super-admin can override it (Brave or Gemini/Google grounding, with fallback) in Admin → Models → Web search; no restart needed |
 | `AGENTFIRM_PADDLE_MODE` | `disabled` (later `live`) | Free plan and admin credit grants work without Paddle |
 | `AGENTFIRM_PADDLE_CHECKOUT_URL` | `https://app.example.com/billing/checkout` | |
 | `AGENTFIRM_PADDLE_ENVIRONMENT`, `_PADDLE_API_KEY`, `_PADDLE_WEBHOOK_SECRET` | **you**, when Paddle goes live | |

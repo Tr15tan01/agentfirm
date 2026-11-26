@@ -31,7 +31,10 @@ async def executable_agents(database, owner_db):
     from agentfirm.agents.registry import registry
     from agentfirm.core.config import get_settings
 
-    seeded = {r["key"]: r["version"] for r in await owner_db.fetch("SELECT a.key, v.version FROM agent_versions v JOIN agents a ON a.id = v.agent_id WHERE v.is_current")}
+    seeded = {
+        r["key"]: r["version"]
+        for r in await owner_db.fetch("SELECT a.key, v.version FROM agent_versions v JOIN agents a ON a.id = v.agent_id WHERE v.is_current")
+    }
     engine = create_async_engine(get_settings().migrations_database_url)
     Session = async_sessionmaker(engine, expire_on_commit=False)
     keys = ("creative", "research", "marketing", "engineer", "bi", "assistant")
@@ -173,7 +176,11 @@ async def test_creative_six_hats_framework(client, executable_agents):
 
 async def test_research_cites_only_collected_sources_and_surfaces_conflicts(client, executable_agents, corpus):
     a = await register(client, org="Research Co")
-    doc = await client.post("/v1/knowledge/documents", headers=a.h, json={"title": "Internal notes", "content": "Our churn among European language learners is highest in the first month of the subscription."})
+    doc = await client.post(
+        "/v1/knowledge/documents",
+        headers=a.h,
+        json={"title": "Internal notes", "content": "Our churn among European language learners is highest in the first month of the subscription."},
+    )
     assert doc.status_code == 201
     task = await create(client, a, "European language learning market size", "research", depth="standard")
     await drain()
@@ -368,7 +375,9 @@ async def test_financial_approval_needs_billing_permission(client, owner_db):
     approval_id = await owner_db.fetchval(
         "INSERT INTO approval_requests (id, org_id, execution_id, agent_id, tool_key, title, reason, side_effect) "
         "VALUES (gen_random_uuid(), $1, $2, $3, 'ads.budget_change', 'Raise budget', 'Spend', 'financial') RETURNING id",
-        uuid.UUID(a.org_id), uuid.UUID(task["executions"][0]["id"]), agent_id,
+        uuid.UUID(a.org_id),
+        uuid.UUID(task["executions"][0]["id"]),
+        agent_id,
     )
     r = await client.post(f"/v1/approvals/{approval_id}/decision", headers=member.h, json={"decision": "approved"})
     assert r.status_code == 403 and "billing:manage" in r.text
@@ -453,7 +462,8 @@ async def test_sse_delivers_the_final_event_even_if_status_commits_first(client,
         await asyncio.sleep(0.4)
         await owner_db.execute(
             "INSERT INTO execution_events (org_id, execution_id, seq, type, payload) VALUES ($1, $2, 99, 'execution.status', '{\"status\": \"completed\"}')",
-            uuid.UUID(a.org_id), ex_id,
+            uuid.UUID(a.org_id),
+            ex_id,
         )
 
     writer = asyncio.create_task(late_event())
