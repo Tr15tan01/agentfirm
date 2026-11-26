@@ -12,6 +12,7 @@ import {
   Plug,
   Settings,
   Waypoints,
+  Search,
   Building2,
   type LucideIcon,
 } from "lucide-react";
@@ -63,6 +64,7 @@ export const NAV: NavSection[] = [
     requiresSuperAdmin: true,
     items: [
       { href: "/admin/models", label: "Models & Routing", icon: Waypoints },
+      { href: "/admin/search", label: "Web search", icon: Search },
       { href: "/admin/platform", label: "Plans, Workspaces & Tools", icon: Building2 },
     ],
   },
